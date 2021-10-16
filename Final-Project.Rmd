@@ -110,6 +110,15 @@ best_penalty <- select_best(tune_output, metric = 'mae')
 best_penalty # choose penalty value based on lowest mae
 
 autoplot(tune_output) + theme_classic()
+
+final_wf <- finalize_workflow(lasso_wf_car, best_penalty) # incorporates penalty value to workflow
+final_wf_se <- finalize_workflow(lasso_wf_car, best_se_penalty)
+
+final_fit <- fit(final_wf, data = accidents)
+final_fit_se <- fit(final_wf_se, data = accidents)
+
+tidy(final_fit)
+tidy(final_fit_se)
 ```
 
 c. Estimate the test performance of the models using CV. Report and interpret (with units) the CV metric estimates along with a measure of uncertainty in the estimate (`std_error` is readily available when you used `collect_metrics(summarize=TRUE)`).
@@ -181,8 +190,43 @@ a. Update your OLS model(s) and LASSO model to use natural splines for the quant
   -It’s recommended to use few knots (e.g., 2 knots = 3 degrees of freedom).
   
 ```{r}
+spline_rec <- recipe(logDist ~ ., data = accidents) %>% #Predictors, data = accidents)
+  step_dummy(all_nominal_predictors()) #%>%
+  #step_ns(Terminal, deg_free = 3) %>%
+  #step_ns(Expend, deg_free = 3) #ask Brianna about what we need
 
+# Check the pre-processed data
+spline_rec %>% prep(accidents) %>% juice()
 ```
+
+```{r}
+lm_spec <-
+  linear_reg() %>%
+  set_engine(engine = 'lm') %>%
+  set_mode('regression')
+
+# Workflow (Recipe + Model)
+spline_wf <- workflow() %>% 
+  add_recipe(spline_rec) %>%
+  add_model(lm_spec) 
+
+
+# CV to Evaluate
+cv_output <- fit_resamples( 
+  spline_wf, # workflow
+  resamples =accident_cv, # cv folds
+  metrics = metric_set(mae)
+)
+cv_output %>% collect_metrics()
+
+# Fit model
+ns_mod <- spline_wf %>%
+  fit(data = accidents) 
+
+ns_mod %>%
+  tidy()
+```
+
 
 b. Compare insights from variable importance analyses here and the corresponding results from the Investigation 1. Now after having accounted for nonlinearity, have the most relevant predictors changed?
   -Note that if some (but not all) of the spline terms are selected in the final models, the whole predictor should be treated as selected.
