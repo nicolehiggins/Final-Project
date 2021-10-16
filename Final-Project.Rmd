@@ -208,8 +208,12 @@ e.
 <br>
 
 3. **Societal impact**
-    - Are there any harms that may come from your analyses and/or how the data were collected?
-    - What cautions do you want to keep in mind when communicating your work?
+Are there any harms that may come from your analyses and/or how the data were collected?
+
+One element of the way data was collected that may be harmful is the fact that this information is collected from API’s from Mapquest and Bing which would be tracking live traffic. A lot of the time, this traffic is collected from users of the apps which many times do not realize they have consented to allowing their location information to be collected. As a result, information on traffic duration is made up of individuals who may not want to contribute to the research. Similarly, another harm of the dataset could be the possible inclusion of multiples when recording the accidents. The data collectors took measures to filter out any duplicates, but there is a possibility that there are still some left in that could affect the integrity of our results. 
+What cautions do you want to keep in mind when communicating your work?
+
+We want to make note that since the dataset is so extensive ( >1M cases), we needed to filter the dataset down to almost half of the original amount in order to be able to run our models. As a result, we are only looking at specific years, which may be reflective of whatever the conditions of overall traffic patterns are. For example, by excluding 2020, we are not measuring the effect COVID-19 had on traffic. Likewise, not incorporating 2016 and 2017 will not take into account the lower gas prices that may have led to higher traffic volumes. As a result, we need to take these and other possible shortcomings of the dataset into consideration.
 
 
 
