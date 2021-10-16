@@ -67,8 +67,9 @@ testing(accident_cv$splits[[1]]) # pulls testing data for the 1st split (1st fol
 
 a. Use ordinary least squares (OLS) by using the `lm` engine and LASSO (`glmnet` engine) to build  a series of initial regression models for your quantitative outcome as a function of the predictors of interest. (As part of data cleaning, exclude any variables that you don't want to consider as predictors.)
   - You'll need two model specifications, `lm_spec` and `lm_lasso_spec` (you'll need to tune this one).
+  
 ```{r}
-# model spec
+# model specifications
 lm_spec <-
     linear_reg() %>% 
     set_engine(engine = 'lm') %>% 
@@ -76,10 +77,9 @@ lm_spec <-
 
 lm_lasso_spec <- 
     linear_reg() %>%
-    set_args(mixture = 1, penalty = tune()) %>% ## mixture = 1 indicates Lasso, we'll talk about penalty later
+    set_args(mixture = 1, penalty = tune()) %>% 
     set_engine(engine = 'glmnet') %>%
     set_mode('regression')
-
 ```
 
 b. For each set of variables, you'll need a `recipe` with the `formula`, `data`, and pre-processing steps
@@ -88,13 +88,12 @@ b. For each set of variables, you'll need a `recipe` with the `formula`, `data`,
         
 ```{r}
 # recipes & workflows
-#Do we need a recipe for the first regression?
 
 car_rec <- recipe(logDist ~ `Side` + `Visibility(mi)` + `Temperature(F)` + `Wind_Speed(mph)` + `Precipitation(in)` + `Weather_Condition` + `Crossing` + `Junction` + `Traffic_Signal` + `Sunrise_Sunset`, data = accidents) %>%
     step_nzv(all_predictors()) %>%
     step_other(all_nominal_predictors()) %>% 
     step_normalize(all_numeric_predictors()) %>%
-    step_dummy(all_nominal_predictors()) #IS THIS RIGHT
+    step_dummy(all_nominal_predictors()) 
 
 model_wf <- workflow() %>%
     add_recipe(car_rec) %>%
@@ -104,7 +103,6 @@ fit_model <- model_wf %>% fit(data = accidents)
 
 car_rec %>% prep(accidents) %>% juice()
 
-# Car_rec %>% prep(accident_sub) %>% juice() # prep function incorrect
 lasso_wf_car <- workflow() %>%
     add_recipe(car_rec) %>%
     add_model(lm_lasso_spec)
@@ -129,13 +127,10 @@ tune_output <- tune_grid( # new function for tuning parameters
 )
 
 autoplot(tune_output) + theme_classic()
-
-#lasso_fit_Car <- lasso_wf_Car %>% 
-#  fit(data = accident_sub) # Fit to entire data set (for now)
 ```
 
 c. Estimate the test performance of the models using CV. Report and interpret (with units) the CV metric estimates along with a measure of uncertainty in the estimate (`std_error` is readily available when you used `collect_metrics(summarize=TRUE)`).
-        - Compare estimated test performance across the models. Which models(s) might you prefer?
+  - Compare estimated test performance across the models. Which models(s) might you prefer?
 
 ```{r}
 #  calculate/collect CV metrics
