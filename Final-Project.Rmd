@@ -4,6 +4,7 @@ knitr::opts_chunk$set(echo=TRUE, eval=TRUE)
 
 # Homework 2 {-}
 
+## 1.
 ```{r}
 # library statements 
 # read in data
@@ -153,14 +154,16 @@ e. Which variables do you think are the most important predictors of your quanti
 
 <br>
 
-2. **Summarize investigations**
+## 2. 
+**Summarize investigations**
     - Decide on an overall best model based on your investigations so far. To do this, make clear your analysis goals. Predictive accuracy? Interpretability? A combination of both?
 
 
 
 <br>
 
-3. **Societal impact**
+## 3. 
+**Societal impact**
 Are there any harms that may come from your analyses and/or how the data were collected?
 
 One element of the way data was collected that may be harmful is the fact that this information is collected from API’s from Mapquest and Bing which would be tracking live traffic. A lot of the time, this traffic is collected from users of the apps which many times do not realize they have consented to allowing their location information to be collected. As a result, information on traffic duration is made up of individuals who may not want to contribute to the research. Similarly, another harm of the dataset could be the possible inclusion of multiples when recording the accidents. The data collectors took measures to filter out any duplicates, but there is a possibility that there are still some left in that could affect the integrity of our results. 
@@ -171,21 +174,16 @@ We want to make note that since the dataset is so extensive ( >1M cases), we nee
 
 # Homework 3 {-}
 
-1. Initial investigation: ignoring nonlinearity (for now)
-a. Use ordinary least squares (OLS) by using the lm engine and LASSO (glmnet engine) to build a series of initial regression models for your quantitative outcome as a function of the predictors of interest. (As part of data cleaning, exclude any variables that you don’t want to consider as predictors.)
-  -You’ll need two model specifications, lm_spec and lm_lasso_spec (you’ll need to tune this one).
-b. For each set of variables, you’ll need a recipe with the formula, data, and pre-processing steps
-  -You may want to have steps in your recipe that remove variables with near zero variance (step_nzv()), remove variables that are highly correlated with other variables (step_corr()), normalize all quantitative predictors (step_normalize(all_numeric_predictors())) and add indicator variables for any categorical variables (step_dummy(all_nominal_predictors())).
-  -These models should not include any transformations to deal with nonlinearity. You’ll explore this in the next investigation.
-c. Estimate the test performance of the models using CV. Report and interpret (with units) the CV metric estimates along with a measure of uncertainty in the estimate (std_error is readily available when you used collect_metrics(summarize=TRUE)).
-  -Compare estimated test performance across the models. Which models(s) might you prefer?
-d. Use residual plots to evaluate whether some quantitative predictors might be better modeled with nonlinear relationships.
-e. Which variables do you think are the most important predictors of your quantitative outcome? Justify your answer. Do the methods you’ve applied reach consensus on which variables are most important? What insights are expected? Surprising?
-  -Note that if some (but not all) of the indicator terms for a categorical predictor are selected in the final models, the whole predictor should be treated as selected. 
-2. Accounting for nonlinearity
+## 2.
+**Accounting for nonlinearity**
 a. Update your OLS model(s) and LASSO model to use natural splines for the quantitative predictors.
   -You’ll need to update the recipe to include step_ns() for each quantitative predictor.
   -It’s recommended to use few knots (e.g., 2 knots = 3 degrees of freedom).
+  
+```{r}
+
+```
+
 b. Compare insights from variable importance analyses here and the corresponding results from the Investigation 1. Now after having accounted for nonlinearity, have the most relevant predictors changed?
   -Note that if some (but not all) of the spline terms are selected in the final models, the whole predictor should be treated as selected.
 c. Fit a GAM using spline terms using the set of variables deemed to be most relevant based on your investigations so far.
