@@ -9,22 +9,19 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+```{r}
+accidents <- read_csv("/Users/nicolehiggins/Documents/Macalester/Machine Learning/Project/US_Accidents_Dec20_updated.csv")
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+accident_clean <- accidents %>%
+    filter(year(Start_Time) >= 2018, year(Start_Time) <= 2019) %>%
+    drop_na(.) %>%
+    select(-End_Time, -Airport_Code, -Timezone, -Weather_Timestamp, -Civil_Twilight, -Nautical_Twilight,-Astronomical_Twilight, -Traffic_Calming, -`Humidity(%)`, -`Wind_Chill(F)`, -Railway,  -Bump, -Amenity, -Country, -`Pressure(in)`, -Wind_Direction, -Give_Way, -No_Exit, -Roundabout, - Station, -Stop, -Turning_Loop, - Stop, -Description, - Street, -Severity) %>%
+  sample_frac(size = 1/5) %>%
+  mutate(Crossing = if_else(Crossing, 1, 0)) %>%
+  mutate(Traffic_Signal = if_else(Traffic_Signal, 1, 0)) %>%
+  mutate(logDist = log(`Distance(mi)`+.1)) %>%
+  select(-`Distance(mi)`)
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+write_csv(accident_sub, 'accident_clean.csv')
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
