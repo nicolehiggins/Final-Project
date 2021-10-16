@@ -60,7 +60,7 @@ accidents <- read_csv("accident_clean.csv")
 # creation of cv folds
 set.seed(253)
 
-accident_cv <- vfold_cv(accident_clean, v = 10) # this is the random part
+accident_cv <- vfold_cv(accidents, v = 10) # this is the random part
 
 training(accident_cv$splits[[1]]) # pulls training data for the 1st split (1st fold is testing set)
 testing(accident_cv$splits[[1]]) # pulls testing data for the 1st split (1st fold is testing set)
@@ -91,7 +91,7 @@ b. For each set of variables, you'll need a `recipe` with the `formula`, `data`,
 # recipes & workflows
 #Do we need a recipe for the first regression?
 
-car_rec <- recipe(logDist ~ `Side` + `Visibility(mi)` + `Temperature(F)` + `Wind_Speed(mph)` + `Precipitation(in)` + `Weather_Condition` + `Crossing` + `Junction` + `Traffic_Signal` + `Sunrise_Sunset`, data = accident_sub) %>%
+car_rec <- recipe(logDist ~ `Side` + `Visibility(mi)` + `Temperature(F)` + `Wind_Speed(mph)` + `Precipitation(in)` + `Weather_Condition` + `Crossing` + `Junction` + `Traffic_Signal` + `Sunrise_Sunset`, data = accidents) %>%
     step_nzv(all_predictors()) %>%
     step_other(all_nominal_predictors()) %>% 
     step_normalize(all_numeric_predictors()) %>%
@@ -101,9 +101,9 @@ model_wf <- workflow() %>%
     add_recipe(car_rec) %>%
     add_model(lm_spec)
 
-fit_model <- model_wf %>% fit(data = accident_sub)
+fit_model <- model_wf %>% fit(data = accidents)
 
-car_rec %>% prep(accident_sub) %>% juice()
+car_rec %>% prep(accidents) %>% juice()
 
 # Car_rec %>% prep(accident_sub) %>% juice() # prep function incorrect
 lasso_wf_car <- workflow() %>%
@@ -150,8 +150,8 @@ d. Use residual plots to evaluate whether some quantitative predictors might be 
 
 #how do we do this?
 mod1_output <- fit_model %>% 
-    predict(new_data = accident_sub) %>% #this function maintains the row order of the new_data
-    bind_cols(accident_sub) %>%
+    predict(new_data = accidents) %>% #this function maintains the row order of the new_data
+    bind_cols(accidents) %>%
     mutate(resid = logDist - .pred)
 
 
