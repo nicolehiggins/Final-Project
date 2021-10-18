@@ -190,13 +190,15 @@ a. Update your OLS model(s) and LASSO model to use natural splines for the quant
   -It’s recommended to use few knots (e.g., 2 knots = 3 degrees of freedom).
   
 ```{r}
-spline_rec <- recipe(logDist ~ ., data = accidents) %>% #Predictors, data = accidents)
-  step_dummy(all_nominal_predictors()) #%>%
+spline_rec <- recipe(logDist ~ ., data = accidents) %>% #How to remove only one predictor
+  step_dummy(all_nominal_predictors()) %>%
+  step_rm(`Weather_Condition_Partly.Cloudy`)
   #step_ns(Terminal, deg_free = 3) %>%
   #step_ns(Expend, deg_free = 3) #ask Brianna about what we need
 
 # Check the pre-processed data
-spline_rec %>% prep(accidents) %>% juice()
+spline_rec %>% prep(accidents) %>% juice() #why did ID show up? How to analyze? How do we know which ones to do stepns for?
+#How do we know which predictors are the most relevant?
 ```
 
 ```{r}
@@ -228,7 +230,7 @@ ns_mod %>%
 ```
 
 
-b. Compare insights from variable importance analyses here and the corresponding results from the Investigation 1. Now after having accounted for nonlinearity, have the most relevant predictors changed?
+b. Compare insights from variable importance analyses here and the corresponding results from the Investigation 1. Now after having accounted for nonlinearity, have the most relevant predictors changed? 
   -Note that if some (but not all) of the spline terms are selected in the final models, the whole predictor should be treated as selected.
 c. Fit a GAM using spline terms using the set of variables deemed to be most relevant based on your investigations so far.
   -How does test performance of the GAM compare to other models you explored?
