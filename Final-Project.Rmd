@@ -30,6 +30,16 @@ accidents <- read_csv("accident_clean.csv")
 # mutate(Traffic_Signal = if_else(Traffic_Signal, 1, 0)) %>%
 # mutate(logDist = log(`Distance(mi)`+.1)) %>%
 # select(-`Distance(mi)`)
+
+accidents <- accidents %>%
+  rename(Temp = `Temperature(F)`) %>%
+  rename(Wind = `Wind_Speed(mph)`) %>%
+  rename(Precip = `Precipitation(in)`) %>%
+  rename(Vis = `Visibility(mi)`)
+
+accidents <- accidents %>%
+  mutate(dayofweek = lubridate::wday(Start_Time), month = month(Start_Time))
+
 ```
 
 ```{r}
@@ -66,7 +76,7 @@ b. For each set of variables, you'll need a `recipe` with the `formula`, `data`,
 ```{r}
 # recipes & workflows
 
-car_rec <- recipe(logDist ~ `Side` + `Visibility(mi)` + `Temperature(F)` + `Wind_Speed(mph)` + `Precipitation(in)` + `Weather_Condition` + `Crossing` + `Junction` + `Traffic_Signal` + `Sunrise_Sunset`, data = accidents) %>%
+car_rec <- recipe(logDist ~ Side + Vis+ Temp+ Wind + Precip+ Weather_Condition + Crossing + Junction + Traffic_Signal + Sunrise_Sunset, data = accidents) %>%
     step_nzv(all_predictors()) %>%
     step_other(all_nominal_predictors()) %>% 
     step_normalize(all_numeric_predictors()) %>%
@@ -151,7 +161,7 @@ mod1_output %>%
 
 mod1_output %>% 
   #augment() %>%
-  ggplot(aes(x = `Temperature(F)`, y = resid)) + #note patterns in residual/error
+  ggplot(aes(x = Temp, y = resid)) + #note patterns in residual/error
   geom_point() +
   geom_smooth() +
   geom_hline(yintercept = 0) +
@@ -190,9 +200,31 @@ a. Update your OLS model(s) and LASSO model to use natural splines for the quant
   -It’s recommended to use few knots (e.g., 2 knots = 3 degrees of freedom).
   
 ```{r}
-spline_rec <- recipe(logDist ~ ., data = accidents) %>% #How to remove only one predictor
-  step_dummy(all_nominal_predictors()) %>%
-  step_rm(`Weather_Condition_Partly.Cloudy`)
+
+  
+gam_spec <- 
+  gen_additive_mod() %>%
+  set_engine(engine = 'mgcv') %>%
+  set_mode('regression') 
+
+gam_mod <- fit(gam_spec,
+               logDist ~ Side + s(Vis) + s(Temp,k=11) + Wind + Precip + Weather_Condition + Crossing + Junction + Traffic_Signal + Sunrise_Sunset, 
+               data = accidents)
+
+par(mfrow=c(2,2))
+gam_mod %>% pluck('fit') %>% mgcv::gam.check()
+gam_mod %>% pluck('fit') %>% summary()
+gam_mod %>% pluck('fit') %>%plot( page = 1)
+```
+
+  
+```{r}
+spline_rec <- recipe(logDist ~ ., data = accidents) %>% 
+  step_rm(ID) %>%
+  #step_rm(`Weather_Condition_Partly.Cloudy`) %>%
+  step_other(all_nominal_predictors()) %>%
+  step_dummy(all_nominal_predictors())
+  
   #step_ns(Terminal, deg_free = 3) %>%
   #step_ns(Expend, deg_free = 3) #ask Brianna about what we need
 
