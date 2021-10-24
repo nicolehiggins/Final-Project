@@ -128,8 +128,11 @@ final_fit <- fit(final_wf, data = accidents)
 final_fit_se <- fit(final_wf_se, data = accidents)
 
 tidy(final_fit)
-tidy(final_fit_se)
+tidy(final_fit_se) %>% arrange(desc(abs(estimate)))
 ```
+logDist ~ Side + Vis+ Temp+ Wind + Precip+ Weather_Condition + Crossing + Junction + Traffic_Signal + Sunrise_Sunset
+
+### why are the variables in the model different here eg. Side, Vis, Junction missing from tidy? 
 
 c. Estimate the test performance of the models using CV. Report and interpret (with units) the CV metric estimates along with a measure of uncertainty in the estimate (`std_error` is readily available when you used `collect_metrics(summarize=TRUE)`).
   - Compare estimated test performance across the models. Which models(s) might you prefer?
@@ -145,23 +148,55 @@ d. Use residual plots to evaluate whether some quantitative predictors might be 
 # visual residuals
 
 #how do we do this?
-mod1_output <- fit_model %>% 
+mod1_output <- final_fit_se %>% 
     predict(new_data = accidents) %>% #this function maintains the row order of the new_data
     bind_cols(accidents) %>%
     mutate(resid = logDist - .pred)
 
-
 mod1_output %>% 
-  #augment() %>%
-  ggplot(aes(x = .pred, y = resid)) + #note patterns in residual/error
+  ggplot(aes(x = .pred, y = resid)) + 
   geom_point() +
   geom_smooth() +
   geom_hline(yintercept = 0) +
   theme_classic()
 
 mod1_output %>% 
-  #augment() %>%
-  ggplot(aes(x = Temp, y = resid)) + #note patterns in residual/error
+  ggplot(aes(x = Temp, y = resid)) + 
+  geom_point() +
+  geom_smooth() +
+  geom_hline(yintercept = 0) +
+  theme_classic()
+
+mod1_output %>% 
+  ggplot(aes(x = Vis, y = resid)) + 
+  geom_point() +
+  geom_smooth() +
+  geom_hline(yintercept = 0) +
+  theme_classic()
+
+mod1_output %>% 
+  ggplot(aes(x = Wind, y = resid)) + 
+  geom_point() +
+  geom_smooth() +
+  geom_hline(yintercept = 0) +
+  theme_classic()
+
+mod1_output %>% 
+  ggplot(aes(x = Precip, y = resid)) + 
+  geom_point() +
+  geom_smooth() +
+  geom_hline(yintercept = 0) +
+  theme_classic()
+
+mod1_output %>% 
+  ggplot(aes(x = dayofweek, y = resid)) + 
+  geom_point() +
+  geom_smooth() +
+  geom_hline(yintercept = 0) +
+  theme_classic()
+
+mod1_output %>% 
+  ggplot(aes(x = month, y = resid)) + 
   geom_point() +
   geom_smooth() +
   geom_hline(yintercept = 0) +
@@ -170,6 +205,8 @@ mod1_output %>%
 
 e. Which variables do you think are the most important predictors of your quantitative outcome? Justify your answer. Do the methods you've applied reach consensus on which variables are most important? What insights are expected? Surprising?
   - Note that if some (but not all) of the indicator terms for a categorical predictor are selected in the final models, the whole predictor should be treated as selected.
+
+
 
 <br>
 
@@ -200,8 +237,6 @@ a. Update your OLS model(s) and LASSO model to use natural splines for the quant
   -It’s recommended to use few knots (e.g., 2 knots = 3 degrees of freedom).
   
 ```{r}
-
-  
 gam_spec <- 
   gen_additive_mod() %>%
   set_engine(engine = 'mgcv') %>%
@@ -213,10 +248,9 @@ gam_mod <- fit(gam_spec,
 
 par(mfrow=c(2,2))
 gam_mod %>% pluck('fit') %>% mgcv::gam.check()
-gam_mod %>% pluck('fit') %>% summary()
+gam_mod %>% pluck('fit') %>% summary() 
 gam_mod %>% pluck('fit') %>%plot( page = 1)
 ```
-
   
 ```{r}
 spline_rec <- recipe(logDist ~ ., data = accidents) %>% 
@@ -230,7 +264,7 @@ spline_rec <- recipe(logDist ~ ., data = accidents) %>%
 
 # Check the pre-processed data
 spline_rec %>% prep(accidents) %>% juice() #why did ID show up? How to analyze? How do we know which ones to do stepns for?
-#How do we know which predictors are the most relevant?
+# How do we know which predictors are the most relevant?
 ```
 
 ```{r}
@@ -258,16 +292,20 @@ ns_mod <- spline_wf %>%
   fit(data = accidents) 
 
 ns_mod %>%
-  tidy()
+  tidy() %>%
+  arrange(desc(p.value))
+
 ```
 
 
 b. Compare insights from variable importance analyses here and the corresponding results from the Investigation 1. Now after having accounted for nonlinearity, have the most relevant predictors changed? 
   -Note that if some (but not all) of the spline terms are selected in the final models, the whole predictor should be treated as selected.
+  
+### we didn't get past this... we have to redo some of the part 1 code as we standardized some variables; but have all reached our capacity for this assignment and want to enjoy break.
+
 c. Fit a GAM using spline terms using the set of variables deemed to be most relevant based on your investigations so far.
   -How does test performance of the GAM compare to other models you explored?
   -Do you gain any insights from the GAM output plots for each predictor?
-d. Don’t worry about KNN for now.
 
 
 3. Summarize investigations
