@@ -16,30 +16,30 @@ library(tidymodels)
 library(lubridate)
 tidymodels_prefer()
 
-accidents <- read_csv("accident_clean.csv")
+accidents <- read_csv("accident_cleanest.csv")
 ```
 
 ```{r}
 # how we cleaned the data
 
-# filter(year(Start_Time) >= 2018, year(Start_Time) <= 2019) %>%
-# drop_na(.) %>%
-# select(-End_Time, -Airport_Code, -Timezone, -Weather_Timestamp, -Civil_Twilight, -Nautical_Twilight,-Astronomical_Twilight, -Traffic_Calming, -`Humidity(%)`, -`Wind_Chill(F)`, -Railway,  -Bump, -Amenity, -Country, -`Pressure(in)`, -Wind_Direction, -Give_Way, -No_Exit, -Roundabout, - Station, -Stop, -Turning_Loop, - Stop, -Description, - Street, -Severity) %>%
-# sample_frac(size = 1/5) %>%
-# mutate(Crossing = if_else(Crossing, 1, 0)) %>%
-# mutate(Traffic_Signal = if_else(Traffic_Signal, 1, 0)) %>%
-# mutate(logDist = log(`Distance(mi)`+.1)) %>%
-# select(-`Distance(mi)`)
+#  filter(year(Start_Time) >= 2018, year(Start_Time) <= 2019) %>%
+#  drop_na(.) %>%
+#  select( -Severity,  -Description, -Number, - Street, -Side, -County, -Zipcode, -Country, -Timezone, -Airport_Code, -Weather_Timestamp, -`Wind_Chill(F)`, -`Humidity(%)`, -`Pressure(in)`, -Wind_Direction, -`Precipitation(in)`, -Amenity, -Bump, -Give_Way, -No_Exit, -Railway, -Roundabout, - Station, -Stop, -Traffic_Calming, -Turning_Loop, -Civil_Twilight, -Nautical_Twilight, -Astronomical_Twilight) %>%
+#  sample_frac(size = 1/5) %>%
+#  mutate(Crossing = if_else(Crossing, 1, 0)) %>%
+#  mutate(Junction = if_else(Junction, 1, 0)) %>%
+#  mutate(Traffic_Signal = if_else(Traffic_Signal, 1, 0)) %>%
+#  mutate(logDist = log(`Distance(mi)`+.1)) %>%
+#  mutate(Duration = round(End_Time - Start_Time)) %>%
+#  select(-`Distance(mi)`, - End_Time)
 
 accidents <- accidents %>%
   rename(Temp = `Temperature(F)`) %>%
   rename(Wind = `Wind_Speed(mph)`) %>%
-  rename(Precip = `Precipitation(in)`) %>%
   rename(Vis = `Visibility(mi)`)
 
 accidents <- accidents %>%
   mutate(dayofweek = lubridate::wday(Start_Time), month = month(Start_Time))
-
 ```
 
 ```{r}
@@ -67,6 +67,12 @@ lm_lasso_spec <-
     set_args(mixture = 1, penalty = tune()) %>% 
     set_engine(engine = 'glmnet') %>%
     set_mode('regression')
+
+knn_spec <- 
+  nearest_neighbor() %>% # new type of model!
+  set_args(neighbors = tune()) %>% # tuning parameter is neighbor; tuning spec
+  set_engine(engine = 'kknn') %>% # new engine
+  set_mode('regression') 
 ```
 
 b. For each set of variables, you'll need a `recipe` with the `formula`, `data`, and pre-processing steps
@@ -76,7 +82,7 @@ b. For each set of variables, you'll need a `recipe` with the `formula`, `data`,
 ```{r}
 # recipes & workflows
 
-car_rec <- recipe(logDist ~ Side + Vis+ Temp+ Wind + Precip+ Weather_Condition + Crossing + Junction + Traffic_Signal + Sunrise_Sunset, data = accidents) %>%
+car_rec <- recipe(logDist ~ Vis + Temp + Wind + Weather_Condition + Crossing + Junction + Traffic_Signal + Sunrise_Sunset + Duration + dayofweek + Start_Time, data = accidents) %>%
     step_nzv(all_predictors()) %>%
     step_other(all_nominal_predictors()) %>% 
     step_normalize(all_numeric_predictors()) %>%
@@ -93,6 +99,10 @@ car_rec %>% prep(accidents) %>% juice()
 lasso_wf_car <- workflow() %>%
     add_recipe(car_rec) %>%
     add_model(lm_lasso_spec)
+
+knn_wf <- workflow() %>%
+  add_model(knn_spec) %>%
+  add_recipe(car_rec)
 ```
 
 
@@ -320,6 +330,11 @@ c. Fit a GAM using spline terms using the set of variables deemed to be most rel
 Specify the research question for a classification task.
 
 Try to implement at least 2 different classification methods to answer your research question.
+
+```{r}
+
+```
+
 
 Reflect on the information gained from these two methods and how you might justify this method to others.
 
