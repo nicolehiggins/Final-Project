@@ -329,10 +329,43 @@ c. Fit a GAM using spline terms using the set of variables deemed to be most rel
 # Homework 4 {-}
 Specify the research question for a classification task.
 
+**What is the best predictor of the length of traffic caused by an accident?**
+
 Try to implement at least 2 different classification methods to answer your research question.
 
 ```{r}
+penalty_grid <- grid_regular(
+  neighbors(range = c(1, 100)), #  min and max of values for neighbors
+  levels = 20) # number of neighbors values
+knn_fit_cv <- tune_grid(knn_wf, # workflow
+              resamples = accident_cv, #CV folds
+              grid = penalty_grid, # grid specified above
+              metrics = metric_set(rmse, mae))
 
+knn_fit_cv %>% autoplot() + theme_classic()
+knn_fit_cv %>% show_best(metric = 'mae') 
+
+tuned_knn_wf <- knn_fit_cv %>% 
+  select_by_one_std_err(metric = 'mae', desc(neighbors)) %>%  # Choose neighbors value that leads to the highest neighbors within 1 se of the lowest CV MAE
+  finalize_workflow(knn_wf, .)
+
+# Fit final KNN model to data
+knn_fit_final <- tuned_knn_wf %>%
+  fit(data = accidents) 
+
+#--------------------
+
+knn_mod_out <- knn_fit_final %>%
+    predict(new_data = accidents) %>%
+    bind_cols(accidents) %>%
+    mutate(resid = logDist - .pred)
+
+knn_mod_out %>% 
+  ggplot(aes(x = .pred, y = resid)) + 
+  geom_point() +
+  geom_smooth(se = FALSE) + 
+  geom_hline(yintercept = 0) + 
+  theme_classic()
 ```
 
 
@@ -345,12 +378,15 @@ Indicate at least 2 different methods used to answer your classification researc
 Describe what you did to evaluate the models explored.
 Indicate how you estimated quantitative evaluation metrics.
 Describe the goals / purpose of the methods used in the overall context of your research investigations.
+
 Classification - Results
 Summarize your final model and justify your model choice (see below for ways to justify your choice).
 Compare the different classification models tried in light of evaluation metrics, variable importance, and data context.
 Display evaluation metrics for different models in a clean, organized way. This display should include both the estimated metric as well as its standard deviation. (This won’t be available from OOB error estimation. If using OOB, don’t worry about reporting the SD.)
 Broadly summarize conclusions from looking at these evaluation metrics and their measures of uncertainty.
-Classification - Conclusions - Interpret evaluation metric(s) for the final model in context. Does the model show an acceptable amount of error? - If using OOB error estimation, display the test (OOB) confusion matrix, and use it to interpret the strengths and weaknesses of the final model. - Summarization should show evidence of acknowledging the data context in thinking about the sensibility of these results.
+
+Classification - Conclusions - 
+Interpret evaluation metric(s) for the final model in context. Does the model show an acceptable amount of error? - If using OOB error estimation, display the test (OOB) confusion matrix, and use it to interpret the strengths and weaknesses of the final model. - Summarization should show evidence of acknowledging the data context in thinking about the sensibility of these results.
 
 
 
