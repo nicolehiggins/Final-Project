@@ -14,6 +14,7 @@ library(ggplot2)
 library(dplyr)
 library(tidymodels)
 library(lubridate)
+library(fabricatr)
 tidymodels_prefer()
 
 accidents <- read_csv("accident_cleanest.csv")
@@ -329,9 +330,64 @@ c. Fit a GAM using spline terms using the set of variables deemed to be most rel
 # Homework 4 {-}
 Specify the research question for a classification task.
 
-**What is the best predictor of the length of traffic caused by an accident?**
+**What factors best predict whether an accident's impact on traffic is low, medium or high?**
 
 Try to implement at least 2 different classification methods to answer your research question.
+
+```{r, warning=FALSE}
+# splitting distance into low, medium and high
+# these will be two different log graphs—low to med and med to high
+
+accidents %>%
+  mutate(distRank = ntile(accidents$logDist, 3)) %>%
+  mutate(distRank = relevel(factor(distRank), ref = 1)) %>%
+  filter(distRank == c(1,2)) -> lowMedDist #compares low to medium distance
+         
+accidents %>%
+  mutate(distRank = ntile(accidents$logDist, 3)) %>%
+  mutate(distRank = relevel(factor(distRank), ref = 2)) %>%
+  filter(distRank == c(2,3)) -> medHighDist #compares medium to high distance
+
+# CV Folds for each
+lowMed_cv10 <- vfold_cv(lowMedDist, v = 10)
+medHigh_cv10 <- vfold_cv(medHighDist, v = 10)
+
+# Tuning Specification
+logistic_lasso_spec_tune <- logistic_reg() %>%
+    set_engine('glmnet') %>%
+    set_args(mixture = 1, penalty = tune()) %>%
+    set_mode('classification')
+```
+
+```{r}
+# for lowMed subset:
+
+# Recipe 
+logistic_rec <- recipe(distRank ~ ., data = lowMedDist) %>%
+    step_normalize(all_numeric_predictors()) %>%
+    step_dummy(all_nominal_predictors())
+
+# Workflow (Recipe + Model)
+log_lasso_wf <- workflow() %>%
+    add_recipe(logistic_rec) %>%
+    add_model(logistic_lasso_spec_tune)
+
+# Tune Model
+penalty_grid <- grid_regular(
+  penalty(range = c(-3, 1)), #log10 transformed
+  levels = 30)
+
+# Tune Output
+tune_output <- tune_grid(
+  log_lasso_wf, # workflow
+  resamples = lowMed_cv10, # cv folds
+  metrics = metric_set(roc_auc),
+  control = control_resamples(save_pred = TRUE, event_level = 'second'),
+  grid = penalty_grid # penalty grid defined above
+)
+```
+
+
 
 ```{r}
 penalty_grid <- grid_regular(
