@@ -333,12 +333,12 @@ Try to implement at least 2 different classification methods to answer your rese
 accidents %>%
   mutate(distRank = ntile(accidents$logDist, 3)) %>%
   mutate(distRank = relevel(factor(distRank), ref = 1)) %>%
-  filter(distRank == c(1,2)) -> lowMedDist  #compares low to medium distance
+  filter(distRank %in% c(1,2)) -> lowMedDist  #compares low to medium distance
          
 accidents %>%
   mutate(distRank = ntile(accidents$logDist, 3)) %>%
   mutate(distRank = relevel(factor(distRank), ref = 2)) %>%
-  filter(distRank == c(2,3)) -> medHighDist #compares medium to high distance
+  filter(distRank %in% c(2,3)) -> medHighDist #compares medium to high distance
 
 # CV Folds for each
 lowMed_cv10 <- vfold_cv(lowMedDist, v = 10)
@@ -381,6 +381,8 @@ tune_output <- tune_grid(
   control = control_resamples(save_pred = TRUE, event_level = 'second'),
   grid = penalty_grid # penalty grid defined above
 )
+
+# Tune Output results in an error, unsure why but we predict it is a problem with the formatting of our categorical variables
 ```
 
 
