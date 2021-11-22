@@ -7,6 +7,12 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(tidymodels)
+library(lubridate)
+tidymodels_prefer()
 ```
 
 ```{r}
@@ -15,13 +21,19 @@ accidents <- read_csv("/Users/nicolehiggins/Documents/Macalester/Machine Learnin
 accident_clean <- accidents %>%
     filter(year(Start_Time) >= 2018, year(Start_Time) <= 2019) %>%
     drop_na(.) %>%
-    select(-End_Time, -Airport_Code, -Timezone, -Weather_Timestamp, -Civil_Twilight, -Nautical_Twilight,-Astronomical_Twilight, -Traffic_Calming, -`Humidity(%)`, -`Wind_Chill(F)`, -Railway,  -Bump, -Amenity, -Country, -`Pressure(in)`, -Wind_Direction, -Give_Way, -No_Exit, -Roundabout, - Station, -Stop, -Turning_Loop, - Stop, -Description, - Street, -Severity) %>%
+    select( -Severity,  -Description, -Number, - Street, -Side, -County, -Zipcode, -Country, -Timezone, -Airport_Code, -Weather_Timestamp, -`Wind_Chill(F)`, -`Humidity(%)`, -`Pressure(in)`, -Wind_Direction, -`Precipitation(in)`, -Amenity, -Bump, -Give_Way, -No_Exit, -Railway, -Roundabout, - Station, -Stop, -Traffic_Calming, -Turning_Loop, -Civil_Twilight, -Nautical_Twilight, -Astronomical_Twilight) %>%
   sample_frac(size = 1/5) %>%
   mutate(Crossing = if_else(Crossing, 1, 0)) %>%
+  mutate(Junction = if_else(Junction, 1, 0)) %>%
   mutate(Traffic_Signal = if_else(Traffic_Signal, 1, 0)) %>%
   mutate(logDist = log(`Distance(mi)`+.1)) %>%
-  select(-`Distance(mi)`)
+  mutate(Duration = round(End_Time - Start_Time)) %>%
+  rename(Temp = `Temperature(F)`) %>%
+  rename(Wind = `Wind_Speed(mph)`) %>%
+  rename(Vis = `Visibility(mi)`) %>%
+  mutate(dayofweek = lubridate::wday(Start_Time), month = month(Start_Time)) %>%
+  select(-`Distance(mi)`, - End_Time)
 
-write_csv(accident_sub, 'accident_clean.csv')
+write_csv(accident_clean, 'accident_cleanest.csv')
 ```
 

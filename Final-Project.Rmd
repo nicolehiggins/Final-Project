@@ -2,7 +2,7 @@
 knitr::opts_chunk$set(echo=TRUE, eval=TRUE)
 ```
 
-# Homework 2 {-}
+# Homework 2 {-}Z
 
 ## 1.
 ```{r}
@@ -14,25 +14,38 @@ library(ggplot2)
 library(dplyr)
 library(tidymodels)
 library(lubridate)
-library(fabricatr)
+library(rpart.plot)
 tidymodels_prefer()
 
-accidents <- read_csv("accident_cleanest.csv")
+accidents <- read_csv("/Users/coolguy/Downloads/US_Accidents_Dec20_updated.csv")
 ```
 
 ```{r}
 # how we cleaned the data
+ accidents <- read_csv("/Users/coolguy/Downloads/US_Accidents_Dec20_updated.csv") %>% 
+ filter(year(Start_Time) >= 2018, year(Start_Time) <= 2019) %>%
+ drop_na(.) %>%
+ select( -Description, -Number, - Street, -Side, -County, -Zipcode, -Country, -Timezone, -Airport_Code, -Weather_Timestamp, -`Wind_Chill(F)`, -`Humidity(%)`, -`Pressure(in)`, -Wind_Direction, -`Precipitation(in)`, -Amenity, -Bump, -Give_Way, -No_Exit, -Railway, -Roundabout, - Station, -Stop, -Traffic_Calming, -Turning_Loop, -Civil_Twilight, -Nautical_Twilight, -Astronomical_Twilight) %>%
+ sample_frac(size = 1/5) %>%
+ mutate(Crossing = if_else(Crossing, 1, 0)) %>%
+ mutate(Junction = if_else(Junction, 1, 0)) %>% 
+ mutate(Traffic_Signal = if_else(Traffic_Signal, 1, 0)) %>%
+ mutate(logDist = log(`Distance(mi)`+.1)) %>%
+ mutate(Duration = round(End_Time - Start_Time)) %>%
+ select(-`Distance(mi)`, - End_Time)
 
-#  filter(year(Start_Time) >= 2018, year(Start_Time) <= 2019) %>%
-#  drop_na(.) %>%
-#  select( -Severity,  -Description, -Number, - Street, -Side, -County, -Zipcode, -Country, -Timezone, -Airport_Code, -Weather_Timestamp, -`Wind_Chill(F)`, -`Humidity(%)`, -`Pressure(in)`, -Wind_Direction, -`Precipitation(in)`, -Amenity, -Bump, -Give_Way, -No_Exit, -Railway, -Roundabout, - Station, -Stop, -Traffic_Calming, -Turning_Loop, -Civil_Twilight, -Nautical_Twilight, -Astronomical_Twilight) %>%
-#  sample_frac(size = 1/5) %>%
-#  mutate(Crossing = if_else(Crossing, 1, 0)) %>%
-#  mutate(Junction = if_else(Junction, 1, 0)) %>%
-#  mutate(Traffic_Signal = if_else(Traffic_Signal, 1, 0)) %>%
-#  mutate(logDist = log(`Distance(mi)`+.1)) %>%
-#  mutate(Duration = round(End_Time - Start_Time)) %>%
-#  select(-`Distance(mi)`, - End_Time)
+
+accidents <- accidents %>%
+  rename(Temp = `Temperature(F)`) %>%
+  rename(Wind = `Wind_Speed(mph)`) %>%
+  rename(Vis = `Visibility(mi)`)
+
+accidents <- accidents %>%
+  mutate(dayofweek = lubridate::wday(Start_Time), month = month(Start_Time)) 
+
+accidents <- accidents %>%
+  mutate(Severity = as.factor(Severity))
+
 ```
 
 ```{r}
@@ -93,9 +106,12 @@ lasso_wf_car <- workflow() %>%
     add_recipe(car_rec) %>%
     add_model(lm_lasso_spec)
 
+#__________________________________________________________
+#Probably need to get rid of this and try a differ classification
 knn_wf <- workflow() %>%
   add_model(knn_spec) %>%
   add_recipe(car_rec)
+#__________________________________________________________
 ```
 
 
@@ -322,70 +338,9 @@ c. Fit a GAM using spline terms using the set of variables deemed to be most rel
 # Homework 4 {-}
 Specify the research question for a classification task.
 
-**What factors best predict whether an accident's impact on traffic is low, medium or high?**
+**What is the best predictor of the length of traffic caused by an accident?**
 
 Try to implement at least 2 different classification methods to answer your research question.
-
-```{r, warning=FALSE}
-# splitting distance into low, medium and high
-# these will be two different log graphs—low to med and med to high
-
-accidents %>%
-  mutate(distRank = ntile(accidents$logDist, 3)) %>%
-  mutate(distRank = relevel(factor(distRank), ref = 1)) %>%
-  filter(distRank %in% c(1,2)) -> lowMedDist  #compares low to medium distance
-         
-accidents %>%
-  mutate(distRank = ntile(accidents$logDist, 3)) %>%
-  mutate(distRank = relevel(factor(distRank), ref = 2)) %>%
-  filter(distRank %in% c(2,3)) -> medHighDist #compares medium to high distance
-
-# CV Folds for each
-lowMed_cv10 <- vfold_cv(lowMedDist, v = 10)
-medHigh_cv10 <- vfold_cv(medHighDist, v = 10)
-
-# Tuning Specification
-logistic_lasso_spec_tune <- logistic_reg() %>%
-    set_engine('glmnet') %>%
-    set_args(mixture = 1, penalty = tune()) %>%
-    set_mode('classification')
-```
-
-```{r}
-# for lowMed subset:
-
-# Recipe 
-logistic_rec <- recipe(distRank ~ Start_Time, Duration, dayofweek, Temp,
-                       Vis, Wind, Weather_Condition, Crossing, Junction,
-                       Traffic_Signal, Sunrise_Sunset,
-                       data = lowMedDist) %>%
-    step_normalize(all_numeric_predictors()) %>%
-    step_other(all_nominal_predictors()) %>%
-    step_dummy(all_nominal_predictors())
-
-# Workflow (Recipe + Model)
-log_lasso_wf <- workflow() %>%
-    add_recipe(logistic_rec) %>%
-    add_model(logistic_lasso_spec_tune)
-
-# Tune Model
-penalty_grid <- grid_regular(
-  penalty(range = c(-3, 1)), #log10 transformed
-  levels = 30)
-
-# Tune Output
-tune_output <- tune_grid(
-  log_lasso_wf, # workflow
-  resamples = lowMed_cv10, # cv folds
-  metrics = metric_set(roc_auc),
-  control = control_resamples(save_pred = TRUE, event_level = 'second'),
-  grid = penalty_grid # penalty grid defined above
-)
-
-# Tune Output results in an error, unsure why but we predict it is a problem with the formatting of our categorical variables
-```
-
-
 
 ```{r}
 penalty_grid <- grid_regular(
@@ -420,6 +375,79 @@ knn_mod_out %>%
   geom_smooth(se = FALSE) + 
   geom_hline(yintercept = 0) + 
   theme_classic()
+#_______________________________________________
+#AMRIT TESTING
+
+
+
+set.seed(123) # don't change this
+
+
+tree_fold <- vfold_cv(accidents, v = 10)
+
+ct_spec_tune <- decision_tree() %>%
+  set_engine(engine = 'rpart') %>%
+  set_args(cost_complexity = tune(),  
+           min_n = 2, 
+           tree_depth = NULL) %>% 
+  set_mode('classification') 
+
+tree_rec <- recipe(Severity ~ Temp + Vis + Wind + Weather_Condition + Crossing + Junction + Traffic_Signal + Sunrise_Sunset + logDist + Duration + dayofweek + month, data = accidents) %>%
+  step_nzv(all_predictors()) %>%
+  step_other(all_nominal_predictors()) %>% 
+  step_normalize(all_numeric_predictors()) %>%
+  step_dummy(all_nominal_predictors()) 
+
+model_wf <- workflow() %>%
+    add_recipe(car_rec) %>%
+    add_model(lm_spec)
+
+tree_wf_tune <- workflow() %>%
+  add_model(ct_spec_tune) %>%
+  add_recipe(tree_rec)
+
+param_grid <- grid_regular(cost_complexity(range = c(-5, 1)), levels = 10) 
+
+tree_tune_res <- tune_grid(
+  tree_wf_tune, 
+  resamples = tree_fold, 
+  grid = param_grid, 
+  metrics = metric_set(accuracy) #change this for regression trees
+)
+
+autoplot(tree_tune_res) + theme_classic()
+
+best_complexity <- select_by_one_std_err(tree_tune_res, metric = 'accuracy', desc(cost_complexity))
+data_wf_final <- finalize_workflow(tree_wf_tune, best_complexity)
+
+tree_final_fit <- fit(data_wf_final, data = accidents)
+
+
+tree_tune_res %>% 
+  collect_metrics() %>%
+  filter(cost_complexity == best_complexity %>% pull(cost_complexity))
+
+tree_mod_lowcp <- fit(
+    tree_wf_tune %>%
+        update_model(ct_spec_tune %>% set_args(cost_complexity = .00001)),
+    data = accidents
+)
+
+tree_mod_highcp <- fit(
+    tree_wf_tune %>%
+        update_model(ct_spec_tune %>% set_args(cost_complexity = .1)),
+    data = accidents
+)
+
+# Plot all 3 trees in a row
+par(mfrow = c(1,3))
+
+#tree_mod_lowcp %>% extract_fit_engine() %>% rpart.plot(roundint = FALSE) #DONT USE THIS
+  
+tree_final_fit %>% extract_fit_engine() %>% rpart.plot()
+
+#tree_mod_highcp %>% extract_fit_engine() %>% rpart.plot() #DONT USE THIS
+
 ```
 
 
