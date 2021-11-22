@@ -16,35 +16,36 @@ library(tidymodels)
 library(lubridate)
 library(rpart.plot)
 tidymodels_prefer()
+conflicted::conflict_prefer("vi", "vip")
 
-accidents <- read_csv("/Users/coolguy/Downloads/US_Accidents_Dec20_updated.csv")
+accidents <- read_csv("accident_cleanest.csv")
 ```
 
 ```{r}
 # how we cleaned the data
- accidents <- read_csv("/Users/coolguy/Downloads/US_Accidents_Dec20_updated.csv") %>% 
- filter(year(Start_Time) >= 2018, year(Start_Time) <= 2019) %>%
- drop_na(.) %>%
- select( -Description, -Number, - Street, -Side, -County, -Zipcode, -Country, -Timezone, -Airport_Code, -Weather_Timestamp, -`Wind_Chill(F)`, -`Humidity(%)`, -`Pressure(in)`, -Wind_Direction, -`Precipitation(in)`, -Amenity, -Bump, -Give_Way, -No_Exit, -Railway, -Roundabout, - Station, -Stop, -Traffic_Calming, -Turning_Loop, -Civil_Twilight, -Nautical_Twilight, -Astronomical_Twilight) %>%
- sample_frac(size = 1/5) %>%
- mutate(Crossing = if_else(Crossing, 1, 0)) %>%
- mutate(Junction = if_else(Junction, 1, 0)) %>% 
- mutate(Traffic_Signal = if_else(Traffic_Signal, 1, 0)) %>%
- mutate(logDist = log(`Distance(mi)`+.1)) %>%
- mutate(Duration = round(End_Time - Start_Time)) %>%
- select(-`Distance(mi)`, - End_Time)
+# accidents <- read_csv("accident_cleanest.csv") %>% 
+# filter(year(Start_Time) >= 2018, year(Start_Time) <= 2019) %>%
+# drop_na(.) %>%
+# select(-Description, -Number, - Street, -Side, -County, -Zipcode, -Country, -Timezone, #-Airport_Code, -Weather_Timestamp, -`Wind_Chill(F)`, -`Humidity(%)`, -`Pressure(in)`, #-Wind_Direction, -`Precipitation(in)`, -Amenity, -Bump, -Give_Way, -No_Exit, -Railway, #-Roundabout, - Station, -Stop, -Traffic_Calming, -Turning_Loop, -Civil_Twilight, #-Nautical_Twilight, -Astronomical_Twilight) %>%
+# sample_frac(size = 1/5) %>%
+# mutate(Crossing = if_else(Crossing, 1, 0)) %>%
+# mutate(Junction = if_else(Junction, 1, 0)) %>% 
+# mutate(Traffic_Signal = if_else(Traffic_Signal, 1, 0)) %>%
+# mutate(logDist = log(`Distance(mi)`+.1)) %>%
+# mutate(Duration = round(End_Time - Start_Time)) %>%
+# select(-`Distance(mi)`, - End_Time)
 
 
-accidents <- accidents %>%
-  rename(Temp = `Temperature(F)`) %>%
-  rename(Wind = `Wind_Speed(mph)`) %>%
-  rename(Vis = `Visibility(mi)`)
-
-accidents <- accidents %>%
-  mutate(dayofweek = lubridate::wday(Start_Time), month = month(Start_Time)) 
-
-accidents <- accidents %>%
-  mutate(Severity = as.factor(Severity))
+# accidents <- accidents %>%
+#   rename(Temp = `Temperature(F)`) %>%
+#   rename(Wind = `Wind_Speed(mph)`) %>%
+#   rename(Vis = `Visibility(mi)`)
+# 
+# accidents <- accidents %>%
+#   mutate(dayofweek = lubridate::wday(Start_Time), month = month(Start_Time)) 
+# 
+# accidents <- accidents %>%
+#   mutate(Severity = as.factor(Severity))
 
 ```
 
@@ -114,8 +115,9 @@ knn_wf <- workflow() %>%
 #__________________________________________________________
 ```
 
+###ALL MODELS FAILED
+```{r, eval=FALSE} 
 
-```{r}
 #fit & tune models
 mod1_cv <- fit_resamples(model_wf, 
                          resamples = accident_cv, 
@@ -377,9 +379,9 @@ knn_mod_out %>%
   theme_classic()
 #_______________________________________________
 #AMRIT TESTING
+```
 
-
-
+```{r}
 set.seed(123) # don't change this
 
 
@@ -449,6 +451,25 @@ tree_final_fit %>% extract_fit_engine() %>% rpart.plot()
 #tree_mod_highcp %>% extract_fit_engine() %>% rpart.plot() #DONT USE THIS
 
 ```
+
+```{r}
+rf_spec <- rand_forest() %>%
+  set_engine(engine = 'ranger') %>% 
+  set_args(mtry = NULL, # size of random subset of variables; default is floor(sqrt(number of total predictors))
+           trees = 1000, # Number of trees
+           min_n = 2,
+           probability = FALSE, # FALSE: get hard predictions (not needed for regression)
+           importance = 'impurity') %>% # we'll come back to this at the end
+  set_mode('classification') # change this for regression
+
+# Recipe is tree_rec
+
+# Workflows
+data_wf_mtry2 <- workflow() %>%
+  add_model(rf_spec %>% set_args(mtry = 4)) %>%
+  add_recipe(tree_rec)
+```
+
 
 
 Reflect on the information gained from these two methods and how you might justify this method to others.
