@@ -5,9 +5,7 @@ knitr::opts_chunk$set(echo=TRUE, eval=TRUE)
 # Homework 2 {-}Z
 
 ## 1.
-```{r}
-# library statements 
-# read in data
+```{r Library and Data}
 knitr::opts_chunk$set(echo = TRUE)
 library(readr)
 library(ggplot2)
@@ -22,7 +20,7 @@ load("accident_cleanest.Rdata")
 accidents = accident_clean
 ```
 
-```{r}
+```{r Cleaning Behind the Scenes}
 # how we cleaned the data
 
 # accident_clean <- accidents %>%
@@ -43,8 +41,7 @@ accidents = accident_clean
 #   mutate(Severity = as.factor(Severity))
 ```
 
-```{r}
-# creation of cv folds
+```{r CV Folds}
 set.seed(253)
 
 accident_cv <- vfold_cv(accidents, v = 10) # this is the random part
@@ -56,8 +53,7 @@ testing(accident_cv$splits[[1]]) # pulls testing data for the 1st split (1st fol
 a. Use ordinary least squares (OLS) by using the `lm` engine and LASSO (`glmnet` engine) to build  a series of initial regression models for your quantitative outcome as a function of the predictors of interest. (As part of data cleaning, exclude any variables that you don't want to consider as predictors.)
   - You'll need two model specifications, `lm_spec` and `lm_lasso_spec` (you'll need to tune this one).
   
-```{r}
-# model specifications
+```{r Linear Model Specs}
 lm_spec <-
     linear_reg() %>% 
     set_engine(engine = 'lm') %>% 
@@ -74,9 +70,7 @@ b. For each set of variables, you'll need a `recipe` with the `formula`, `data`,
   - You may want to have steps in your recipe that remove variables with near zero variance (`step_nzv()`), remove variables that are highly correlated with other variables (`step_corr()`), normalize all quantitative predictors (`step_normalize(all_numeric_predictors())`) and add indicator variables for any categorical variables (`step_dummy(all_nominal_predictors())`).
   - These models should not include any transformations to deal with nonlinearity. You'll explore this in the next investigation.
         
-```{r}
-# recipes & workflows
-
+```{r Linear Recipes and Workflows}
 car_rec <- recipe(logDist ~ Vis + Temp + Wind + Duration + hour, data = accidents) %>%
     step_nzv(all_predictors()) %>%
     step_other(all_nominal_predictors()) %>% 
@@ -94,13 +88,9 @@ car_rec %>% prep(accidents) %>% juice()
 lasso_wf_car <- workflow() %>%
     add_recipe(car_rec) %>%
     add_model(lm_lasso_spec)
-
-
-# fit(lasso_wf_car, accidents)
 ```
 
-```{r, eval=FALSE} 
-#fit & tune models
+```{r, Linear Fit and Tune} 
 mod1_cv <- fit_resamples(model_wf, 
                          resamples = accident_cv, 
                          metrics = metric_set(rmse, rsq, mae))
@@ -137,17 +127,13 @@ tidy(final_fit_se) %>% arrange(desc(abs(estimate)))
 c. Estimate the test performance of the models using CV. Report and interpret (with units) the CV metric estimates along with a measure of uncertainty in the estimate (`std_error` is readily available when you used `collect_metrics(summarize=TRUE)`).
   - Compare estimated test performance across the models. Which models(s) might you prefer?
 
-```{r}
-#  calculate/collect CV metrics
+```{r Metrics}
 mod1_cv %>% collect_metrics()
 ```
 
 d. Use residual plots to evaluate whether some quantitative predictors might be better modeled with nonlinear relationships.
 
-```{r}
-# visual residuals
-
-#how do we do this?
+```{r Residual Plots}
 mod1_output <- final_fit_se %>% 
     predict(new_data = accidents) %>% #this function maintains the row order of the new_data
     bind_cols(accidents) %>%
@@ -216,7 +202,7 @@ a. Update your OLS model(s) and LASSO model to use natural splines for the quant
   -You’ll need to update the recipe to include step_ns() for each quantitative predictor.
   -It’s recommended to use few knots (e.g., 2 knots = 3 degrees of freedom).
   
-```{r}
+```{r Nonlinear Specs}
 gam_spec <- 
   gen_additive_mod() %>%
   set_engine(engine = 'mgcv') %>%
@@ -231,7 +217,7 @@ gam_mod %>% pluck('fit') %>% mgcv::gam.check()
 gam_mod %>% pluck('fit') %>% summary()
 ```
   
-```{r}
+```{r, Nonlinear Recipes}
 spline_rec <- recipe(logDist ~ ., data = accidents) %>% 
   step_other(all_nominal_predictors()) %>%
   step_dummy(all_nominal_predictors())
@@ -295,11 +281,7 @@ Specify the research question for a classification task.
 
 Try to implement at least 2 different classification methods to answer your research question.
 
-```{r}
-
-```
-
-```{r}
+```{r Decision Tree}
 set.seed(123) # don't change this
 
 tree_fold <- vfold_cv(accidents, v = 10)
@@ -308,10 +290,10 @@ ct_spec_tune <- decision_tree() %>%
   set_engine(engine = 'rpart') %>%
   set_args(cost_complexity = tune(),  
            min_n = 2, 
-           tree_depth = NULL) %>% 
+           tree_depth = 3) %>% 
   set_mode('classification') 
 
-tree_rec <- recipe(Severity ~ Weather_Condition + Crossing + Junction + Traffic_Signal + Sunrise_Sunset + dayofweek + month, data = accidents) %>%
+tree_rec <- recipe(Severity ~ Temp + Vis + Wind + Weather_Condition + Crossing + Junction + Traffic_Signal + Sunrise_Sunset + logDist + Duration + dayofweek + month + hour, data = accidents) %>%
   step_nzv(all_predictors()) %>%
   step_other(all_nominal_predictors()) %>% 
   step_normalize(all_numeric_predictors()) %>%
@@ -363,64 +345,14 @@ par(mfrow = c(1,3))
 
 # tree_mod_lowcp %>% extract_fit_engine() %>% rpart.plot(roundint = FALSE) #DONT USE THIS
   
-# tree_final_fit %>% extract_fit_engine() %>% rpart.plot()
+tree_final_fit %>% extract_fit_engine() %>% rpart.plot()
 
 #tree_mod_highcp %>% extract_fit_engine() %>% rpart.plot() #DONT USE THIS
 
 ```
-```{r Tree With All Variables}
-tree_rec <- recipe(Severity ~ Weather_Condition + Crossing + Junction + Traffic_Signal + Sunrise_Sunset + dayofweek + month, data = accidents) %>%
-  step_nzv(all_predictors()) %>%
-  step_other(all_nominal_predictors()) %>% 
-  step_normalize(all_numeric_predictors()) %>%
-  step_dummy(all_nominal_predictors()) 
-
-tree_wf_tune <- workflow() %>%
-  add_model(ct_spec_tune) %>%
-  add_recipe(tree_rec)
-
-tree_tune_res <- tune_grid(
-  tree_wf_tune, 
-  resamples = tree_fold, 
-  grid = param_grid, 
-  metrics = metric_set(accuracy) #change this for regression trees
-)
-
-autoplot(tree_tune_res) + theme_classic()
-
-best_complexity <- select_by_one_std_err(tree_tune_res, metric = 'accuracy', desc(cost_complexity))
-data_wf_final <- finalize_workflow(tree_wf_tune, best_complexity)
-
-tree_final_fit <- fit(data_wf_final, data = accidents)
-
-tree_tune_res %>% 
-  collect_metrics() %>%
-  filter(cost_complexity == best_complexity %>% pull(cost_complexity))
-
-tree_mod_lowcp <- fit(
-    tree_wf_tune %>%
-        update_model(ct_spec_tune %>% set_args(cost_complexity = .00001)),
-    data = accidents
-)
-
-tree_mod_highcp <- fit(
-    tree_wf_tune %>%
-        update_model(ct_spec_tune %>% set_args(cost_complexity = .1)),
-    data = accidents
-)
-
-# Plot all 3 trees in a row
-par(mfrow = c(1,3))
-
-# tree_mod_lowcp %>% extract_fit_engine() %>% rpart.plot(roundint = FALSE) #DONT USE THIS
-  
-# tree_final_fit %>% extract_fit_engine() %>% rpart.plot()
-
-#tree_mod_highcp %>% extract_fit_engine() %>% rpart.plot() #DONT USE THIS
-```
 
 
-```{r}
+```{r Random Forest}
 rf_spec <- rand_forest() %>%
   set_engine(engine = 'ranger') %>% 
   set_args(mtry = NULL, # size of random subset of variables; default is floor(sqrt(number of total predictors))
