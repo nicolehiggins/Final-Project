@@ -13,6 +13,7 @@ library(dplyr)
 library(tidymodels)
 library(lubridate)
 library(rpart.plot)
+library(cluster)
 tidymodels_prefer()
 conflicted::conflict_prefer("vi", "vip")
 
@@ -370,6 +371,26 @@ data_wf_mtry2 <- workflow() %>%
   add_recipe(tree_rec)
 ```
 
+```{r Hierarchical Clustering}
+#CLUSTERING
+# Random subsample of 50 penguins
+set.seed(253)
+accidents_Sub <- accidents %>%
+    slice_sample(n = 50)
+# Select the variables to be used in clustering
+accidents_Clust <- accidents_Sub %>%
+    select(Severity, Temp, Vis, Wind, Weather_Condition, Crossing, Junction, Traffic_Signal, Sunrise_Sunset, logDist, Duration, dayofweek, month, hour) %>%
+    mutate(Weather_Condition = as.factor(Weather_Condition), Sunrise_Sunset = as.factor(Sunrise_Sunset)) %>%
+    mutate(Crossing = as.factor(Crossing), Junction = as.factor(Junction), Traffic_Signal = as.factor(Traffic_Signal))
+# Summary statistics for the variables
+summary(accidents_Clust)
+#Daisy
+accidents_ClustDaze <- hclust(daisy(accidents_Clust), method = 'complete')
+accidents_ClustDaze %>% plot()
+summary(accidents_ClustDaze)
+accidents_ClustDaze %>% plot()
+#SHOULD CUT TO MAKE IT TWO
+```
 
 
 Reflect on the information gained from these two methods and how you might justify this method to others.
