@@ -168,6 +168,7 @@ var_imp_data %>%  ggplot(aes(x = var_imp,y = forcats::fct_reorder(var_name,var_i
         legend.position = "none",
         text = element_text(color = "#073763", face = "bold"),
         axis.text = element_text(color = "#073763", face = "bold"),
+        #axis.title.x = element_text(color = "#073763", face = "bold"),
         axis.line = element_line(color = "#073763"),
         axis.ticks = element_line(color = "#073763"))
 
