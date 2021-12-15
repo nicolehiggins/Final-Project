@@ -125,7 +125,17 @@ best_se_penalty # choose penalty value based on the largest penalty within 1 se 
 best_penalty <- select_best(tune_output, metric = 'mae')
 best_penalty # choose penalty value based on lowest mae
 
-autoplot(tune_output) + theme_classic()
+autoplot(tune_output) + 
+  theme_classic() +
+  theme(panel.background = element_rect("#ead1dc"),
+        plot.background = element_rect("#ead1dc"),
+        legend.position = "none",
+        text = element_text(color = "#073763", face = "bold"),
+        axis.text = element_text(color = "#073763", face = "bold"),
+        axis.line = element_line(color = "#073763"),
+        axis.ticks = element_line(color = "#073763"),
+        strip.background = element_blank(),
+        strip.text = element_text(color = "#073763"))
 
 final_wf <- finalize_workflow(lasso_wf_car, best_penalty) # incorporates penalty value to workflow
 final_wf_se <- finalize_workflow(lasso_wf_car, best_se_penalty)
@@ -168,7 +178,6 @@ var_imp_data %>%  ggplot(aes(x = var_imp,y = forcats::fct_reorder(var_name,var_i
         legend.position = "none",
         text = element_text(color = "#073763", face = "bold"),
         axis.text = element_text(color = "#073763", face = "bold"),
-        #axis.title.x = element_text(color = "#073763", face = "bold"),
         axis.line = element_line(color = "#073763"),
         axis.ticks = element_line(color = "#073763"))
 
@@ -197,38 +206,78 @@ mod1_output <- final_fit_se %>%
 
 mod1_output %>% 
   ggplot(aes(x = .pred, y = resid)) + 
-  geom_point() +
-  geom_smooth() +
-  geom_hline(yintercept = 0) +
-  theme_classic()
+  geom_hline(yintercept = 0, color = "#073763") +
+  geom_point(color = "#741b47", alpha = 0.2) +
+  geom_smooth(color = "#ead1dc") +
+  theme_classic() +
+  theme(panel.background = element_rect("#ead1dc"),
+        plot.background = element_rect("#ead1dc"),
+        legend.position = "none",
+        #line = element_line(color = "#741b47"),
+        text = element_text(color = "#073763", face = "bold"),
+        axis.text = element_text(color = "#073763", face = "bold"),
+        axis.line = element_line(color = "#073763"),
+        axis.ticks = element_line(color = "#073763"))
 
 mod1_output %>% 
   ggplot(aes(x = Temp, y = resid)) + 
-  geom_point() +
-  geom_smooth() +
-  geom_hline(yintercept = 0) +
-  theme_classic()
+  geom_hline(yintercept = 0, color = "#073763") +
+  geom_point(color = "#741b47", alpha = 0.2) +
+  geom_smooth(color = "#ead1dc") +
+  theme_classic() +
+  theme(panel.background = element_rect("#ead1dc"),
+        plot.background = element_rect("#ead1dc"),
+        legend.position = "none",
+        #line = element_line(color = "#741b47"),
+        text = element_text(color = "#073763", face = "bold"),
+        axis.text = element_text(color = "#073763", face = "bold"),
+        axis.line = element_line(color = "#073763"),
+        axis.ticks = element_line(color = "#073763"))
 
 mod1_output %>% 
   ggplot(aes(x = Wind, y = resid)) + 
-  geom_point() +
-  geom_smooth() +
-  geom_hline(yintercept = 0) +
-  theme_classic()
+  geom_hline(yintercept = 0, color = "#073763") +
+  geom_point(color = "#741b47", alpha = 0.2) +
+  geom_smooth(color = "#ead1dc") +
+  theme_classic() +
+  theme(panel.background = element_rect("#ead1dc"),
+        plot.background = element_rect("#ead1dc"),
+        legend.position = "none",
+        #line = element_line(color = "#741b47"),
+        text = element_text(color = "#073763", face = "bold"),
+        axis.text = element_text(color = "#073763", face = "bold"),
+        axis.line = element_line(color = "#073763"),
+        axis.ticks = element_line(color = "#073763"))
 
 mod1_output %>% 
   ggplot(aes(x = Duration, y = resid)) + 
-  geom_point() +
-  geom_smooth() +
-  geom_hline(yintercept = 0) +
-  theme_classic()
+  geom_hline(yintercept = 0, color = "#073763") +
+  geom_point(color = "#741b47", alpha = 0.2) +
+  geom_smooth(color = "#ead1dc") +
+  theme_classic() +
+  theme(panel.background = element_rect("#ead1dc"),
+        plot.background = element_rect("#ead1dc"),
+        legend.position = "none",
+        #line = element_line(color = "#741b47"),
+        text = element_text(color = "#073763", face = "bold"),
+        axis.text = element_text(color = "#073763", face = "bold"),
+        axis.line = element_line(color = "#073763"),
+        axis.ticks = element_line(color = "#073763"))
 
 mod1_output %>% 
   ggplot(aes(x = hour, y = resid)) + 
-  geom_point() +
-  geom_smooth() +
-  geom_hline(yintercept = 0) +
-  theme_classic()
+  geom_hline(yintercept = 0, color = "#073763") +
+  geom_point(color = "#741b47", alpha = 0.2) +
+  geom_smooth(color = "#ead1dc") +
+  theme_classic() +
+  theme(panel.background = element_rect("#ead1dc"),
+        plot.background = element_rect("#ead1dc"),
+        legend.position = "none",
+        #line = element_line(color = "#741b47"),
+        text = element_text(color = "#073763", face = "bold"),
+        axis.text = element_text(color = "#073763", face = "bold"),
+        axis.line = element_line(color = "#073763"),
+        axis.ticks = element_line(color = "#073763"))
 
 #cut duration outliers - done at top
 ```
