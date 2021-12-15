@@ -308,7 +308,7 @@ ct_spec_tune <- decision_tree() %>%
   set_engine(engine = 'rpart') %>%
   set_args(cost_complexity = tune(),  
            min_n = 2, 
-           tree_depth = NULL) %>% 
+           tree_depth = 3) %>% 
   set_mode('classification') 
 
 tree_rec <- recipe(Severity ~ Weather_Condition + Crossing + Junction + Traffic_Signal + Sunrise_Sunset + dayofweek + month, data = accidents) %>%
@@ -369,7 +369,13 @@ par(mfrow = c(1,3))
 
 ```
 ```{r Tree With All Variables}
-tree_rec <- recipe(Severity ~ Weather_Condition + Crossing + Junction + Traffic_Signal + Sunrise_Sunset + dayofweek + month, data = accidents) %>%
+set.seed(123)
+
+accidents_sub <- accidents %>%
+  sample_n(1000)
+
+
+tree_rec <- recipe(Severity ~ Temp + Vis + Wind + Weather_Condition + Crossing + Junction + Traffic_Signal + Sunrise_Sunset + logDist + Duration + dayofweek + month + hour, data = accidents_sub) %>%
   step_nzv(all_predictors()) %>%
   step_other(all_nominal_predictors()) %>% 
   step_normalize(all_numeric_predictors()) %>%
@@ -383,6 +389,7 @@ tree_tune_res <- tune_grid(
   tree_wf_tune, 
   resamples = tree_fold, 
   grid = param_grid, 
+  
   metrics = metric_set(accuracy) #change this for regression trees
 )
 
@@ -391,7 +398,7 @@ autoplot(tree_tune_res) + theme_classic()
 best_complexity <- select_by_one_std_err(tree_tune_res, metric = 'accuracy', desc(cost_complexity))
 data_wf_final <- finalize_workflow(tree_wf_tune, best_complexity)
 
-tree_final_fit <- fit(data_wf_final, data = accidents)
+tree_final_fit <- fit(data_wf_final, data = accidents_sub)
 
 tree_tune_res %>% 
   collect_metrics() %>%
@@ -400,21 +407,21 @@ tree_tune_res %>%
 tree_mod_lowcp <- fit(
     tree_wf_tune %>%
         update_model(ct_spec_tune %>% set_args(cost_complexity = .00001)),
-    data = accidents
+    data = accidents_sub
 )
 
 tree_mod_highcp <- fit(
     tree_wf_tune %>%
         update_model(ct_spec_tune %>% set_args(cost_complexity = .1)),
-    data = accidents
+    data = accidents_sub
 )
 
 # Plot all 3 trees in a row
 par(mfrow = c(1,3))
 
-# tree_mod_lowcp %>% extract_fit_engine() %>% rpart.plot(roundint = FALSE) #DONT USE THIS
+#tree_mod_lowcp %>% extract_fit_engine() %>% rpart.plot(roundint = FALSE) #DONT USE THIS
   
-# tree_final_fit %>% extract_fit_engine() %>% rpart.plot()
+tree_final_fit %>% extract_fit_engine() %>% rpart.plot()
 
 #tree_mod_highcp %>% extract_fit_engine() %>% rpart.plot() #DONT USE THIS
 ```
