@@ -49,6 +49,10 @@ set.seed(253)
 accidents <- accidents  %>% filter(Duration < 10000) %>% mutate(dayofweek = as.factor(dayofweek)) #Brianna added
 accident_cv <- vfold_cv(accidents, v = 10) # this is the random part
 
+darkRose = "#741b47"
+rose = "#ead1dc"
+darkBlu = "#073763"
+
 #training(accident_cv$splits[[1]]) # pulls training data for the 1st split (1st fold is testing set)
 #testing(accident_cv$splits[[1]]) # pulls testing data for the 1st split (1st fold is testing set)
 ```
@@ -180,10 +184,6 @@ var_imp_data %>%  ggplot(aes(x = var_imp,y = forcats::fct_reorder(var_name,var_i
         axis.text = element_text(color = "#073763", face = "bold"),
         axis.line = element_line(color = "#073763"),
         axis.ticks = element_line(color = "#073763"))
-
-#741b47 dark rose
-#ead1dc rose
-#073763 dark blue
 ```
 
 c. Estimate the test performance of the models using CV. Report and interpret (with units) the CV metric estimates along with a measure of uncertainty in the estimate (`std_error` is readily available when you used `collect_metrics(summarize=TRUE)`).
@@ -326,11 +326,12 @@ gam_mod <- fit(gam_spec,
                          Sunrise_Sunset + s(Duration) + dayofweek + s(hour) + s(month), 
                data = accidents) #Brianna adjusted
 
-par(mfrow=c(2,2))
-gam_mod %>% pluck('fit') %>% mgcv::gam.check()
+par(mfrow=c(2,2), bg = rose, col.lab = darkBlu, col.axis = darkBlu, col.main = darkBlu, fg = darkBlu)
+gam_mod %>% pluck('fit') %>% mgcv::gam.check(col = darkRose)
 gam_mod %>% pluck('fit') %>% summary()
 
-gam_mod %>% pluck('fit') %>% plot()
+gam_mod %>% pluck('fit') %>% plot(col = darkRose,
+                                  col.sub = darkBlu)
 ```
   
 ```{r, Nonlinear Recipes}
@@ -374,7 +375,7 @@ ns_mod %>%
   arrange(desc(abs(statistic)))
 
 # Visualizing the Predictions (focusing on Duration, Weather_Condition)
-data_grid <- expand.grid(Duration = seq(10,360, by=1), Temp = 30, Sunrise_Sunset = 'Day', Weather_Condition = c("Mostly Cloudy",'Clear','Snow'), Wind = 0, Junction = 0 , Traffic_Signal = 0, month = 1, hour = 5 , Vis = 10, Crossing = 0, dayofweek = "1",Severity = "2") 
+data_grid <- expand.grid(Duration = seq(10,360, by=1), Temp = 30, Sunrise_Sunset = 'Day', Weather_Condition = c("Mostly Cloudy",'Clear','Snow'), Wind = 0, Junction = 0 , Traffic_Signal = 0, month = 1, hour = 5 , Vis = 10, Crossing = 0, dayofweek = "1" ,Severity = "2") 
 
 predicted_lines <- data_grid %>% 
   bind_cols(
@@ -385,7 +386,7 @@ ggplot(predicted_lines, aes(x = Duration, y = .pred, color = Weather_Condition))
 
 
 # Visualizing the Predictions (focusing on Hour & Sunrise_Sunset)
-data_grid <- expand.grid(Duration = 30, Temp = 30, Sunrise_Sunset = c('Day','Night'), Weather_Condition = "Mostly Cloudy", Wind = 0, Junction = 0 , Traffic_Signal = 0, month = 1, hour = 0:23 , Vis = 10, Crossing = 0, dayofweek = "1",Severity = "2") 
+data_grid <- expand.grid(Duration = 30, Temp = 30, Sunrise_Sunset = c('Day','Night'), Weather_Condition = "Mostly Cloudy", Wind = 0, Junction = 0 , Traffic_Signal = 0, month = 1, hour = 0:23 , Vis = 10, Crossing = 0, dayofweek = "1", Severity = "2") 
 
 predicted_lines <- data_grid %>% 
   bind_cols(
