@@ -1,5 +1,5 @@
 ```{r hw2_setup, include=FALSE}
-knitr::opts_chunk$set(echo=TRUE, eval=TRUE)
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, warning = FALSE, message = FALSE, tidy = TRUE)
 ```
 
 # Homework 2 {-}Z
@@ -23,7 +23,7 @@ accidents = accident_clean
 ```
 
 ```{r Cleaning Behind the Scenes}
-# how we cleaned the data--discuss context
+# how we cleaned the data
 
 # accident_clean <- accidents %>%
 #     filter(year(Start_Time) >= 2018, year(Start_Time) <= 2019) %>%
@@ -43,7 +43,7 @@ accidents = accident_clean
 #   mutate(Severity = as.factor(Severity))
 ```
 
-```{r CV Folds}
+```{r CV Folds and Colors}
 set.seed(253)
 
 accidents <- accidents  %>% filter(Duration < 10000) %>% mutate(dayofweek = as.factor(dayofweek)) #Brianna added
@@ -52,6 +52,9 @@ accident_cv <- vfold_cv(accidents, v = 10) # this is the random part
 darkRose = "#741b47"
 rose = "#ead1dc"
 darkBlu = "#073763"
+midPurp = "#3e2956"
+roses = c("#73666c", "#734d60", "#733453")
+blues = c("#435463", "#2f4a63", "#1b4063")
 
 #training(accident_cv$splits[[1]]) # pulls training data for the 1st split (1st fold is testing set)
 #testing(accident_cv$splits[[1]]) # pulls testing data for the 1st split (1st fold is testing set)
@@ -78,7 +81,6 @@ b. For each set of variables, you'll need a `recipe` with the `formula`, `data`,
   - These models should not include any transformations to deal with nonlinearity. You'll explore this in the next investigation.
         
 ```{r Linear Recipes and Workflows}
-#try all variables
 car_rec <- recipe(logDist ~ Vis + Temp + Wind + Duration + hour, data = accidents) %>%
     step_nzv(all_predictors()) %>%
     step_other(all_nominal_predictors()) %>% 
@@ -106,22 +108,20 @@ lasso_wf_car <- workflow() %>%
     add_model(lm_lasso_spec)
 ```
 
-```{r, Linear Fit and Tune, warning=FALSE} 
+```{r, Linear Fit and Tune} 
 mod1_cv <- fit_resamples(model_wf, 
                          resamples = accident_cv, 
                          metrics = metric_set(rmse, rsq, mae))
-
 
 penalty_grid <- grid_regular(
   penalty(range = c(-3, 1)), #log10 transformed 
   levels = 30)
 
-tune_output <- tune_grid( # new function for tuning parameters
-  lasso_wf_car, # workflow
-  resamples = accident_cv, # cv folds
+tune_output <- tune_grid( 
+  lasso_wf_car, 
+  resamples = accident_cv,
   metrics = metric_set(rmse, mae, rsq),
-  grid = penalty_grid # penalty grid defined above
-)
+  grid = penalty_grid)
 
 best_se_penalty <- select_by_one_std_err(tune_output, metric = 'mae', desc(penalty))
 best_se_penalty # choose penalty value based on the largest penalty within 1 se of the lowest CV MAE
@@ -131,15 +131,15 @@ best_penalty # choose penalty value based on lowest mae
 
 autoplot(tune_output) + 
   theme_classic() +
-  theme(panel.background = element_rect("#ead1dc"),
-        plot.background = element_rect("#ead1dc"),
+  theme(panel.background = element_rect(rose),
+        plot.background = element_rect(rose),
         legend.position = "none",
-        text = element_text(color = "#073763", face = "bold"),
-        axis.text = element_text(color = "#073763", face = "bold"),
-        axis.line = element_line(color = "#073763"),
-        axis.ticks = element_line(color = "#073763"),
+        text = element_text(color = darkBlu, face = "bold"),
+        axis.text = element_text(color = darkBlu, face = "bold"),
+        axis.line = element_line(color = darkBlu),
+        axis.ticks = element_line(color = darkBlu),
         strip.background = element_blank(),
-        strip.text = element_text(color = "#073763"))
+        strip.text = element_text(color = darkBlu))
 
 final_wf <- finalize_workflow(lasso_wf_car, best_penalty) # incorporates penalty value to workflow
 final_wf_se <- finalize_workflow(lasso_wf_car, best_se_penalty)
@@ -176,14 +176,14 @@ var_imp_data %>%  ggplot(aes(x = var_imp,y = forcats::fct_reorder(var_name,var_i
   labs(y = '',
        x = 'Importance', 
        title = 'Lasso Model Variable Importance') +
-  scale_fill_gradient(low = "#073763", high = "#741b47") +
-  theme(panel.background = element_rect("#ead1dc"),
-        plot.background = element_rect("#ead1dc"),
+  scale_fill_gradient(low = darkBlu, high = darkRose) +
+  theme(panel.background = element_rect(rose),
+        plot.background = element_rect(rose),
         legend.position = "none",
-        text = element_text(color = "#073763", face = "bold"),
-        axis.text = element_text(color = "#073763", face = "bold"),
-        axis.line = element_line(color = "#073763"),
-        axis.ticks = element_line(color = "#073763"))
+        text = element_text(color = darkBlu, face = "bold"),
+        axis.text = element_text(color = darkBlu, face = "bold"),
+        axis.line = element_line(color = darkBlu),
+        axis.ticks = element_line(color = darkBlu))
 ```
 
 c. Estimate the test performance of the models using CV. Report and interpret (with units) the CV metric estimates along with a measure of uncertainty in the estimate (`std_error` is readily available when you used `collect_metrics(summarize=TRUE)`).
@@ -206,80 +206,73 @@ mod1_output <- final_fit_se %>%
 
 mod1_output %>% 
   ggplot(aes(x = .pred, y = resid)) + 
-  geom_hline(yintercept = 0, color = "#073763") +
-  geom_point(color = "#741b47", alpha = 0.2) +
-  geom_smooth(color = "#ead1dc") +
+  geom_hline(yintercept = 0, color = darkBlu) +
+  geom_point(color = darkRose, alpha = 0.2) +
+  geom_smooth(color = rose) +
   theme_classic() +
-  theme(panel.background = element_rect("#ead1dc"),
-        plot.background = element_rect("#ead1dc"),
+  theme(panel.background = element_rect(rose),
+        plot.background = element_rect(rose),
         legend.position = "none",
-        #line = element_line(color = "#741b47"),
-        text = element_text(color = "#073763", face = "bold"),
-        axis.text = element_text(color = "#073763", face = "bold"),
-        axis.line = element_line(color = "#073763"),
-        axis.ticks = element_line(color = "#073763"))
+        text = element_text(color = darkBlu, face = "bold"),
+        axis.text = element_text(color = darkBlu, face = "bold"),
+        axis.line = element_line(color = darkBlu),
+        axis.ticks = element_line(color = darkBlu))
 
 mod1_output %>% 
   ggplot(aes(x = Temp, y = resid)) + 
-  geom_hline(yintercept = 0, color = "#073763") +
-  geom_point(color = "#741b47", alpha = 0.2) +
-  geom_smooth(color = "#ead1dc") +
+  geom_hline(yintercept = 0, color = darkBlu) +
+  geom_point(color = darkRose, alpha = 0.2) +
+  geom_smooth(color = rose) +
   theme_classic() +
-  theme(panel.background = element_rect("#ead1dc"),
-        plot.background = element_rect("#ead1dc"),
+  theme(panel.background = element_rect(rose),
+        plot.background = element_rect(rose),
         legend.position = "none",
-        #line = element_line(color = "#741b47"),
-        text = element_text(color = "#073763", face = "bold"),
-        axis.text = element_text(color = "#073763", face = "bold"),
-        axis.line = element_line(color = "#073763"),
-        axis.ticks = element_line(color = "#073763"))
+        text = element_text(color = darkBlu, face = "bold"),
+        axis.text = element_text(color = darkBlu, face = "bold"),
+        axis.line = element_line(color = darkBlu),
+        axis.ticks = element_line(color = darkBlu))
 
 mod1_output %>% 
   ggplot(aes(x = Wind, y = resid)) + 
-  geom_hline(yintercept = 0, color = "#073763") +
-  geom_point(color = "#741b47", alpha = 0.2) +
-  geom_smooth(color = "#ead1dc") +
+  geom_hline(yintercept = 0, color = darkBlu) +
+  geom_point(color = darkRose, alpha = 0.2) +
+  geom_smooth(color = rose) +
   theme_classic() +
-  theme(panel.background = element_rect("#ead1dc"),
-        plot.background = element_rect("#ead1dc"),
+  theme(panel.background = element_rect(rose),
+        plot.background = element_rect(rose),
         legend.position = "none",
-        #line = element_line(color = "#741b47"),
-        text = element_text(color = "#073763", face = "bold"),
-        axis.text = element_text(color = "#073763", face = "bold"),
-        axis.line = element_line(color = "#073763"),
-        axis.ticks = element_line(color = "#073763"))
+        text = element_text(color = darkBlu, face = "bold"),
+        axis.text = element_text(color = darkBlu, face = "bold"),
+        axis.line = element_line(color = darkBlu),
+        axis.ticks = element_line(color = darkBlu))
 
 mod1_output %>% 
   ggplot(aes(x = Duration, y = resid)) + 
-  geom_hline(yintercept = 0, color = "#073763") +
-  geom_point(color = "#741b47", alpha = 0.2) +
-  geom_smooth(color = "#ead1dc") +
+  geom_hline(yintercept = 0, color = darkBlu) +
+  geom_point(color = darkRose, alpha = 0.2) +
+  geom_smooth(color = rose) +
   theme_classic() +
-  theme(panel.background = element_rect("#ead1dc"),
-        plot.background = element_rect("#ead1dc"),
+  theme(panel.background = element_rect(rose),
+        plot.background = element_rect(rose),
         legend.position = "none",
-        #line = element_line(color = "#741b47"),
-        text = element_text(color = "#073763", face = "bold"),
-        axis.text = element_text(color = "#073763", face = "bold"),
-        axis.line = element_line(color = "#073763"),
-        axis.ticks = element_line(color = "#073763"))
+        text = element_text(color = darkBlu, face = "bold"),
+        axis.text = element_text(color = darkBlu, face = "bold"),
+        axis.line = element_line(color = darkBlu),
+        axis.ticks = element_line(color = darkBlu))
 
 mod1_output %>% 
   ggplot(aes(x = hour, y = resid)) + 
-  geom_hline(yintercept = 0, color = "#073763") +
-  geom_point(color = "#741b47", alpha = 0.2) +
-  geom_smooth(color = "#ead1dc") +
+  geom_hline(yintercept = 0, color = darkBlu) +
+  geom_point(color = darkRose, alpha = 0.2) +
+  geom_smooth(color = rose) +
   theme_classic() +
-  theme(panel.background = element_rect("#ead1dc"),
-        plot.background = element_rect("#ead1dc"),
+  theme(panel.background = element_rect(rose),
+        plot.background = element_rect(rose),
         legend.position = "none",
-        #line = element_line(color = "#741b47"),
-        text = element_text(color = "#073763", face = "bold"),
-        axis.text = element_text(color = "#073763", face = "bold"),
-        axis.line = element_line(color = "#073763"),
-        axis.ticks = element_line(color = "#073763"))
-
-#cut duration outliers - done at top
+        text = element_text(color = darkBlu, face = "bold"),
+        axis.text = element_text(color = darkBlu, face = "bold"),
+        axis.line = element_line(color = darkBlu),
+        axis.ticks = element_line(color = darkBlu))
 ```
 
 e. Which variables do you think are the most important predictors of your quantitative outcome? Justify your answer. Do the methods you've applied reach consensus on which variables are most important? What insights are expected? Surprising?
@@ -339,8 +332,8 @@ spline_rec <- recipe(logDist ~ ., data = accidents) %>%
     step_nzv(all_predictors()) %>%
     step_other(all_nominal_predictors()) %>% 
     step_dummy(all_nominal_predictors())  %>%
-    step_ns( Wind,Duration,month,deg_free = 5) %>% #Brianna added
-    step_ns(hour, Temp, deg_free = 5) #Brianna added
+    step_ns( Wind,Duration,month,deg_free = 5) %>%
+    step_ns(hour, Temp, deg_free = 5)
 
 # Check the pre-processed data
 spline_rec %>% prep(accidents) %>% juice()
@@ -379,10 +372,17 @@ data_grid <- expand.grid(Duration = seq(10,360, by=1), Temp = 30, Sunrise_Sunset
 
 predicted_lines <- data_grid %>% 
   bind_cols(
-    predict(ns_mod, new_data = data_grid)
-    ) 
+    predict(ns_mod, new_data = data_grid)) 
 
-ggplot(predicted_lines, aes(x = Duration, y = .pred, color = Weather_Condition)) + geom_point() + geom_line()+ theme_classic() + ggtitle('Spline Model Predictions')
+ggplot(predicted_lines, aes(x = Duration, y = .pred, color = Weather_Condition)) + geom_point() + geom_line()+ theme_classic() + ggtitle('Spline Model Predictions') +
+  scale_color_manual(values = c(darkRose, darkBlu, midPurp)) +
+    theme(panel.background = element_rect(rose),
+        plot.background = element_rect(rose),
+        legend.background = element_blank(),
+        text = element_text(color = darkBlu, face = "bold"),
+        axis.text = element_text(color = darkBlu, face = "bold"),
+        axis.line = element_line(color = darkBlu),
+        axis.ticks = element_line(color = darkBlu))
 
 
 # Visualizing the Predictions (focusing on Hour & Sunrise_Sunset)
@@ -390,10 +390,17 @@ data_grid <- expand.grid(Duration = 30, Temp = 30, Sunrise_Sunset = c('Day','Nig
 
 predicted_lines <- data_grid %>% 
   bind_cols(
-    predict(ns_mod, new_data = data_grid)
-    ) 
+    predict(ns_mod, new_data = data_grid)) 
 
-ggplot(predicted_lines, aes(x = hour, y = .pred, color = Sunrise_Sunset)) + geom_point() + geom_line()+ theme_classic() + ggtitle('Spline Model Predictions')
+ggplot(predicted_lines, aes(x = hour, y = .pred, color = Sunrise_Sunset)) + geom_point() + geom_line()+ theme_classic() + ggtitle('Spline Model Predictions') +
+  scale_color_manual(values = c(darkRose, darkBlu)) +
+    theme(panel.background = element_rect(rose),
+        plot.background = element_rect(rose),
+        legend.background = element_blank(),
+        text = element_text(color = darkBlu, face = "bold"),
+        axis.text = element_text(color = darkBlu, face = "bold"),
+        axis.line = element_line(color = darkBlu),
+        axis.ticks = element_line(color = darkBlu))
 
 # Visualizing the Predictions (focusing on Month & Severity)
 data_grid <- expand.grid(Duration = 30, Temp = 30, Sunrise_Sunset = 'Day', Weather_Condition = "Mostly Cloudy", Wind = 0, Junction = 0 , Traffic_Signal = 0, month = 1:12, hour = 6 , Vis = 10, Crossing = 0, dayofweek = "1",Severity = c("2","3","4")) 
@@ -403,7 +410,15 @@ predicted_lines <- data_grid %>%
     predict(ns_mod, new_data = data_grid)
     ) 
 
-ggplot(predicted_lines, aes(x = month, y = .pred,color = Severity)) + geom_point() + geom_line()+ theme_classic() + ggtitle('Spline Model Predictions')
+ggplot(predicted_lines, aes(x = month, y = .pred,color = Severity)) + geom_point() + geom_line()+ theme_classic() + ggtitle('Spline Model Predictions') +
+  scale_color_manual(values = c(darkRose, darkBlu, midPurp)) +
+    theme(panel.background = element_rect(rose),
+        plot.background = element_rect(rose),
+        legend.background = element_blank(),
+        text = element_text(color = darkBlu, face = "bold"),
+        axis.text = element_text(color = darkBlu, face = "bold"),
+        axis.line = element_line(color = darkBlu),
+        axis.ticks = element_line(color = darkBlu))
 
 ```
 
@@ -423,8 +438,7 @@ cv_output %>% collect_metrics()
 
 b. Compare insights from variable importance analyses here and the corresponding results from the Investigation 1. Now after having accounted for nonlinearity, have the most relevant predictors changed? 
   -Note that if some (but not all) of the spline terms are selected in the final models, the whole predictor should be treated as selected.
-  
-### we didn't get past this... we have to redo some of the part 1 code as we standardized some variables; but have all reached our capacity for this assignment and want to enjoy break.
+
 
 c. Fit a GAM using spline terms using the set of variables deemed to be most relevant based on your investigations so far.
   -How does test performance of the GAM compare to other models you explored?
@@ -466,7 +480,7 @@ tree_wf_tune <- workflow() %>%
   add_model(ct_spec_tune) %>%
   add_recipe(tree_rec)
 
-param_grid <- grid_regular(cost_complexity(range = c(-5, 1)), levels = 10) 
+param_grid <- grid_regular(cost_complexity(range = c(-5, 1)), levels = 10)
 
 tree_tune_res <- tune_grid(
   tree_wf_tune, 
@@ -488,8 +502,8 @@ tree_tune_res %>%
   filter(cost_complexity == best_complexity %>% pull(cost_complexity))
 
 #Tree visual
-tree_final_fit %>% extract_fit_engine() %>% rpart.plot()
-
+par(bg = rose)
+tree_final_fit %>% extract_fit_engine() %>% rpart.plot(box.palette = list(roses, blues))
 
 ```
 
@@ -540,8 +554,16 @@ model_output2 <- data_wf %>%
     extract_fit_engine() 
 
 model_output2 %>% 
-    vip::vip(num_features = 30) + theme_classic()
-
+  vip::vip(num_features = 30) + theme_classic() +
+  scale_color_manual(values = c(darkRose, darkBlu, midPurp)) +
+    theme(panel.background = element_rect(rose),
+        plot.background = element_rect(rose),
+        legend.background = element_blank(),
+        text = element_text(color = darkBlu, face = "bold"),
+        axis.text = element_text(color = darkBlu, face = "bold"),
+        axis.line = element_line(color = darkBlu),
+        axis.ticks = element_line(color = darkBlu),
+        rect = element_rect(color = darkRose))
 
 # Visualizing the Predictions (focusing on Duration, Month, Hour)
 data_grid <- expand.grid(Duration = c(10,15,30,60,120,240), Temp = 30, Sunrise_Sunset = 'Day', Weather_Condition = "Mostly Cloudy", Wind = 0, Junction = 0 , Traffic_Signal = 0, month = 1:12, hour = 0:23 , Vis = 10, Crossing = 0, logDist = 0, dayofweek = "1") 
@@ -559,7 +581,18 @@ predicted_lines <- data_grid %>%
     predict(data_rf_fit, new_data = data_grid)
     ) 
 
-ggplot(predicted_lines,aes(x = hour, y = month, color = .pred_class)) + geom_point() + facet_wrap(~Duration) + theme_classic() + ggtitle('Random Forest Predictions')
+ggplot(predicted_lines,aes(x = hour, y = month, color = .pred_class)) + geom_point() + facet_wrap(~Duration) + theme_classic() + ggtitle('Random Forest Predictions') +
+  scale_color_manual(values = c("#8c3561", "#2d0d52", "#4c85ba")) +
+  labs(color = "Severity") +
+    theme(panel.background = element_rect(rose),
+        plot.background = element_rect(rose),
+        legend.background = element_blank(),
+        strip.background = element_blank(),
+        strip.text = element_text(color = darkBlu),
+        text = element_text(color = darkBlu, face = "bold"),
+        axis.text = element_text(color = darkBlu, face = "bold"),
+        axis.line = element_line(color = darkBlu),
+        axis.ticks = element_line(color = darkBlu))
 ```
 
 ```{r Hierarchical Clustering}
@@ -580,7 +613,6 @@ accidents_ClustDaze <- hclust(daisy(accidents_Clust), method = 'complete')
 accidents_ClustDaze %>% plot()
 summary(accidents_ClustDaze)
 accidents_ClustDaze %>% plot()
-#SHOULD CUT TO MAKE IT TWO
 ```
 
 
