@@ -1,0 +1,623 @@
+```{r hw2_setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, eval=TRUE)
+```
+
+# Homework 2 {-}Z
+
+## 1.
+```{r Library and Data}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(tidymodels)
+library(lubridate)
+library(rpart.plot)
+library(cluster)
+library(forcats)
+tidymodels_prefer()
+conflicted::conflict_prefer("vi", "vip")
+
+load("accident_cleanest.Rdata")
+accidents = accident_clean
+```
+
+```{r Cleaning Behind the Scenes}
+# how we cleaned the data--discuss context
+
+# accident_clean <- accidents %>%
+#     filter(year(Start_Time) >= 2018, year(Start_Time) <= 2019) %>%
+#     drop_na(.) %>%
+#     select(-Start_Lat, -Start_Lng, -End_Lat, -End_Lng, -City, -State, -Description, -Number, - Street, -Side, -County, -Zipcode, -Country, -Timezone, -Airport_Code, -Weather_Timestamp, -`Wind_Chill(F)`, -`Humidity(%)`, -`Pressure(in)`, -Wind_Direction, -`Precipitation(in)`, -Amenity, -Bump, -Give_Way, -No_Exit, -Railway, -Roundabout, - Station, -Stop, -Traffic_Calming, -Turning_Loop, -Civil_Twilight, -Nautical_Twilight, -Astronomical_Twilight) %>%
+#   sample_frac(size = 1/5) %>%
+#   mutate(Crossing = if_else(Crossing, 1, 0)) %>%
+#   mutate(Junction = if_else(Junction, 1, 0)) %>%
+#   mutate(Traffic_Signal = if_else(Traffic_Signal, 1, 0)) %>%
+#   mutate(logDist = log(`Distance(mi)`+.1)) %>%
+#   mutate(Duration = round(End_Time - Start_Time)) %>%
+#   rename(Temp = `Temperature(F)`) %>%
+#   rename(Wind = `Wind_Speed(mph)`) %>%
+#   rename(Vis = `Visibility(mi)`) %>%
+#   mutate(dayofweek = lubridate::wday(Start_Time), month = month(Start_Time)) %>%
+#   select(-`Distance(mi)`, - End_Time) %>%
+#   mutate(Severity = as.factor(Severity))
+```
+
+```{r CV Folds}
+set.seed(253)
+
+accidents <- accidents  %>% filter(Duration < 10000) %>% mutate(dayofweek = as.factor(dayofweek)) #Brianna added
+accident_cv <- vfold_cv(accidents, v = 10) # this is the random part
+
+darkRose = "#741b47"
+rose = "#ead1dc"
+darkBlu = "#073763"
+
+#training(accident_cv$splits[[1]]) # pulls training data for the 1st split (1st fold is testing set)
+#testing(accident_cv$splits[[1]]) # pulls testing data for the 1st split (1st fold is testing set)
+```
+
+a. Use ordinary least squares (OLS) by using the `lm` engine and LASSO (`glmnet` engine) to build  a series of initial regression models for your quantitative outcome as a function of the predictors of interest. (As part of data cleaning, exclude any variables that you don't want to consider as predictors.)
+  - You'll need two model specifications, `lm_spec` and `lm_lasso_spec` (you'll need to tune this one).
+  
+```{r Linear Model Specs}
+lm_spec <-
+    linear_reg() %>% 
+    set_engine(engine = 'lm') %>% 
+    set_mode('regression')
+
+lm_lasso_spec <- 
+    linear_reg() %>%
+    set_args(mixture = 1, penalty = tune()) %>% 
+    set_engine(engine = 'glmnet') %>%
+    set_mode('regression')
+```
+
+b. For each set of variables, you'll need a `recipe` with the `formula`, `data`, and pre-processing steps
+  - You may want to have steps in your recipe that remove variables with near zero variance (`step_nzv()`), remove variables that are highly correlated with other variables (`step_corr()`), normalize all quantitative predictors (`step_normalize(all_numeric_predictors())`) and add indicator variables for any categorical variables (`step_dummy(all_nominal_predictors())`).
+  - These models should not include any transformations to deal with nonlinearity. You'll explore this in the next investigation.
+        
+```{r Linear Recipes and Workflows}
+#try all variables
+car_rec <- recipe(logDist ~ Vis + Temp + Wind + Duration + hour, data = accidents) %>%
+    step_nzv(all_predictors()) %>%
+    step_other(all_nominal_predictors()) %>% 
+    step_normalize(all_numeric_predictors()) %>%
+    step_dummy(all_nominal_predictors()) 
+
+
+car_all_rec <- recipe(logDist ~ ., data = accidents) %>% #Brianna added
+    step_nzv(all_predictors()) %>%
+    step_other(all_nominal_predictors()) %>% 
+    step_novel(all_nominal_predictors()) %>% 
+    step_normalize(all_numeric_predictors()) %>%
+    step_dummy(all_nominal_predictors()) 
+
+model_wf <- workflow() %>%
+    add_recipe(car_rec) %>%
+    add_model(lm_spec)
+
+fit_model <- model_wf %>% fit(data = accidents)
+
+car_all_rec %>% prep(accidents) %>% juice()
+
+lasso_wf_car <- workflow() %>%
+    add_recipe(car_all_rec) %>% #Brianna added
+    add_model(lm_lasso_spec)
+```
+
+```{r, Linear Fit and Tune, warning=FALSE} 
+mod1_cv <- fit_resamples(model_wf, 
+                         resamples = accident_cv, 
+                         metrics = metric_set(rmse, rsq, mae))
+
+
+penalty_grid <- grid_regular(
+  penalty(range = c(-3, 1)), #log10 transformed 
+  levels = 30)
+
+tune_output <- tune_grid( # new function for tuning parameters
+  lasso_wf_car, # workflow
+  resamples = accident_cv, # cv folds
+  metrics = metric_set(rmse, mae, rsq),
+  grid = penalty_grid # penalty grid defined above
+)
+
+best_se_penalty <- select_by_one_std_err(tune_output, metric = 'mae', desc(penalty))
+best_se_penalty # choose penalty value based on the largest penalty within 1 se of the lowest CV MAE
+
+best_penalty <- select_best(tune_output, metric = 'mae')
+best_penalty # choose penalty value based on lowest mae
+
+autoplot(tune_output) + 
+  theme_classic() +
+  theme(panel.background = element_rect("#ead1dc"),
+        plot.background = element_rect("#ead1dc"),
+        legend.position = "none",
+        text = element_text(color = "#073763", face = "bold"),
+        axis.text = element_text(color = "#073763", face = "bold"),
+        axis.line = element_line(color = "#073763"),
+        axis.ticks = element_line(color = "#073763"),
+        strip.background = element_blank(),
+        strip.text = element_text(color = "#073763"))
+
+final_wf <- finalize_workflow(lasso_wf_car, best_penalty) # incorporates penalty value to workflow
+final_wf_se <- finalize_workflow(lasso_wf_car, best_se_penalty)
+
+final_fit <- fit(final_wf, data = accidents)
+final_fit_se <- fit(final_wf_se, data = accidents)
+
+tidy(final_fit)
+tidy(final_fit_se) %>% arrange(desc(abs(estimate)))
+
+#LASSO Var Importance
+glmnet_output <- final_fit_se %>% extract_fit_engine()
+    
+# Create a boolean matrix (predictors x lambdas) of variable exclusion
+bool_predictor_exclude <- glmnet_output$beta==0
+
+# Loop over each variable
+var_imp <- sapply(seq_len(nrow(bool_predictor_exclude)), function(row) {
+    this_coeff_path <- bool_predictor_exclude[row,]
+    if(sum(this_coeff_path) == ncol(bool_predictor_exclude)){ return(0)}else{
+    return(ncol(bool_predictor_exclude) - which.min(this_coeff_path) + 1)}
+})
+
+# Create a dataset of this information and sort
+var_imp_data <- tibble(
+    var_name = rownames(bool_predictor_exclude),
+    var_imp = var_imp
+)
+var_imp_data %>% arrange(desc(var_imp)) %>% ggplot(aes(x = var_imp,y = var_name)) + geom_bar(stat='identity')
+
+var_imp_data %>%  ggplot(aes(x = var_imp,y = forcats::fct_reorder(var_name,var_imp), fill = var_imp)) + 
+  geom_bar(stat='identity') + 
+  theme_classic() +
+  labs(y = '',
+       x = 'Importance', 
+       title = 'Lasso Model Variable Importance') +
+  scale_fill_gradient(low = "#073763", high = "#741b47") +
+  theme(panel.background = element_rect("#ead1dc"),
+        plot.background = element_rect("#ead1dc"),
+        legend.position = "none",
+        text = element_text(color = "#073763", face = "bold"),
+        axis.text = element_text(color = "#073763", face = "bold"),
+        axis.line = element_line(color = "#073763"),
+        axis.ticks = element_line(color = "#073763"))
+```
+
+c. Estimate the test performance of the models using CV. Report and interpret (with units) the CV metric estimates along with a measure of uncertainty in the estimate (`std_error` is readily available when you used `collect_metrics(summarize=TRUE)`).
+  - Compare estimated test performance across the models. Which models(s) might you prefer?
+
+```{r Metrics}
+mod1_cv %>% collect_metrics()
+
+tune_output %>% collect_metrics() %>% 
+  filter(penalty == (best_se_penalty %>% pull(penalty)))
+```
+
+d. Use residual plots to evaluate whether some quantitative predictors might be better modeled with nonlinear relationships.
+
+```{r Residual Plots}
+mod1_output <- final_fit_se %>% 
+    predict(new_data = accidents) %>% #this function maintains the row order of the new_data
+    bind_cols(accidents) %>%
+    mutate(resid = logDist - .pred)
+
+mod1_output %>% 
+  ggplot(aes(x = .pred, y = resid)) + 
+  geom_hline(yintercept = 0, color = "#073763") +
+  geom_point(color = "#741b47", alpha = 0.2) +
+  geom_smooth(color = "#ead1dc") +
+  theme_classic() +
+  theme(panel.background = element_rect("#ead1dc"),
+        plot.background = element_rect("#ead1dc"),
+        legend.position = "none",
+        #line = element_line(color = "#741b47"),
+        text = element_text(color = "#073763", face = "bold"),
+        axis.text = element_text(color = "#073763", face = "bold"),
+        axis.line = element_line(color = "#073763"),
+        axis.ticks = element_line(color = "#073763"))
+
+mod1_output %>% 
+  ggplot(aes(x = Temp, y = resid)) + 
+  geom_hline(yintercept = 0, color = "#073763") +
+  geom_point(color = "#741b47", alpha = 0.2) +
+  geom_smooth(color = "#ead1dc") +
+  theme_classic() +
+  theme(panel.background = element_rect("#ead1dc"),
+        plot.background = element_rect("#ead1dc"),
+        legend.position = "none",
+        #line = element_line(color = "#741b47"),
+        text = element_text(color = "#073763", face = "bold"),
+        axis.text = element_text(color = "#073763", face = "bold"),
+        axis.line = element_line(color = "#073763"),
+        axis.ticks = element_line(color = "#073763"))
+
+mod1_output %>% 
+  ggplot(aes(x = Wind, y = resid)) + 
+  geom_hline(yintercept = 0, color = "#073763") +
+  geom_point(color = "#741b47", alpha = 0.2) +
+  geom_smooth(color = "#ead1dc") +
+  theme_classic() +
+  theme(panel.background = element_rect("#ead1dc"),
+        plot.background = element_rect("#ead1dc"),
+        legend.position = "none",
+        #line = element_line(color = "#741b47"),
+        text = element_text(color = "#073763", face = "bold"),
+        axis.text = element_text(color = "#073763", face = "bold"),
+        axis.line = element_line(color = "#073763"),
+        axis.ticks = element_line(color = "#073763"))
+
+mod1_output %>% 
+  ggplot(aes(x = Duration, y = resid)) + 
+  geom_hline(yintercept = 0, color = "#073763") +
+  geom_point(color = "#741b47", alpha = 0.2) +
+  geom_smooth(color = "#ead1dc") +
+  theme_classic() +
+  theme(panel.background = element_rect("#ead1dc"),
+        plot.background = element_rect("#ead1dc"),
+        legend.position = "none",
+        #line = element_line(color = "#741b47"),
+        text = element_text(color = "#073763", face = "bold"),
+        axis.text = element_text(color = "#073763", face = "bold"),
+        axis.line = element_line(color = "#073763"),
+        axis.ticks = element_line(color = "#073763"))
+
+mod1_output %>% 
+  ggplot(aes(x = hour, y = resid)) + 
+  geom_hline(yintercept = 0, color = "#073763") +
+  geom_point(color = "#741b47", alpha = 0.2) +
+  geom_smooth(color = "#ead1dc") +
+  theme_classic() +
+  theme(panel.background = element_rect("#ead1dc"),
+        plot.background = element_rect("#ead1dc"),
+        legend.position = "none",
+        #line = element_line(color = "#741b47"),
+        text = element_text(color = "#073763", face = "bold"),
+        axis.text = element_text(color = "#073763", face = "bold"),
+        axis.line = element_line(color = "#073763"),
+        axis.ticks = element_line(color = "#073763"))
+
+#cut duration outliers - done at top
+```
+
+e. Which variables do you think are the most important predictors of your quantitative outcome? Justify your answer. Do the methods you've applied reach consensus on which variables are most important? What insights are expected? Surprising?
+  - Note that if some (but not all) of the indicator terms for a categorical predictor are selected in the final models, the whole predictor should be treated as selected.
+
+
+
+<br>
+
+## 2. 
+**Summarize investigations**
+    - Decide on an overall best model based on your investigations so far. To do this, make clear your analysis goals. Predictive accuracy? Interpretability? A combination of both?
+
+
+
+<br>
+
+## 3. 
+**Societal impact**
+Are there any harms that may come from your analyses and/or how the data were collected?
+
+One element of the way data was collected that may be harmful is the fact that this information is collected from API’s from Mapquest and Bing which would be tracking live traffic. A lot of the time, this traffic is collected from users of the apps which many times do not realize they have consented to allowing their location information to be collected. As a result, information on traffic duration is made up of individuals who may not want to contribute to the research. Similarly, another harm of the dataset could be the possible inclusion of multiples when recording the accidents. The data collectors took measures to filter out any duplicates, but there is a possibility that there are still some left in that could affect the integrity of our results. 
+
+What cautions do you want to keep in mind when communicating your work?
+
+We want to make note that since the dataset is so extensive ( >1M cases), we needed to filter the dataset down to almost half of the original amount in order to be able to run our models. As a result, we are only looking at specific years, which may be reflective of whatever the conditions of overall traffic patterns are. For example, by excluding 2020, we are not measuring the effect COVID-19 had on traffic. Likewise, not incorporating 2016 and 2017 will not take into account the lower gas prices that may have led to higher traffic volumes. As a result, we need to take these and other possible shortcomings of the dataset into consideration.
+
+# Homework 3 {-}
+
+## 2.
+**Accounting for nonlinearity**
+a. Update your OLS model(s) and LASSO model to use natural splines for the quantitative predictors.
+  -You’ll need to update the recipe to include step_ns() for each quantitative predictor.
+  -It’s recommended to use few knots (e.g., 2 knots = 3 degrees of freedom).
+  
+```{r Nonlinear Specs}
+gam_spec <- 
+  gen_additive_mod() %>%
+  set_engine(engine = 'mgcv') %>%
+  set_mode('regression') 
+
+gam_mod <- fit(gam_spec, 
+               logDist ~  s(Temp) + s(Wind) + Weather_Condition + Crossing + Junction + Traffic_Signal + 
+                         Sunrise_Sunset + s(Duration) + dayofweek + s(hour) + s(month), 
+               data = accidents) #Brianna adjusted
+
+par(mfrow=c(2,2), bg = rose, col.lab = darkBlu, col.axis = darkBlu, col.main = darkBlu, fg = darkBlu)
+gam_mod %>% pluck('fit') %>% mgcv::gam.check(col = darkRose)
+gam_mod %>% pluck('fit') %>% summary()
+
+gam_mod %>% pluck('fit') %>% plot(col = darkRose,
+                                  col.sub = darkBlu)
+```
+  
+```{r, Nonlinear Recipes}
+spline_rec <- recipe(logDist ~ ., data = accidents) %>% 
+    step_nzv(all_predictors()) %>%
+    step_other(all_nominal_predictors()) %>% 
+    step_dummy(all_nominal_predictors())  %>%
+    step_ns( Wind,Duration,month,deg_free = 5) %>% #Brianna added
+    step_ns(hour, Temp, deg_free = 5) #Brianna added
+
+# Check the pre-processed data
+spline_rec %>% prep(accidents) %>% juice()
+```
+
+```{r}
+lm_spec <-
+  linear_reg() %>%
+  set_engine(engine = 'lm') %>%
+  set_mode('regression')
+
+# Workflow (Recipe + Model)
+spline_wf <- workflow() %>% 
+  add_recipe(spline_rec) %>%
+  add_model(lm_spec) 
+
+
+# CV to Evaluate
+cv_output <- fit_resamples( 
+  spline_wf, # workflow
+  resamples =accident_cv, # cv folds
+  metrics = metric_set(mae,rmse,rsq)
+)
+cv_output %>% collect_metrics()
+
+# Fit model
+ns_mod <- spline_wf %>%
+  fit(data = accidents) 
+
+ns_mod %>%
+  tidy() %>%
+  arrange(desc(abs(statistic)))
+
+# Visualizing the Predictions (focusing on Duration, Weather_Condition)
+data_grid <- expand.grid(Duration = seq(10,360, by=1), Temp = 30, Sunrise_Sunset = 'Day', Weather_Condition = c("Mostly Cloudy",'Clear','Snow'), Wind = 0, Junction = 0 , Traffic_Signal = 0, month = 1, hour = 5 , Vis = 10, Crossing = 0, dayofweek = "1" ,Severity = "2") 
+
+predicted_lines <- data_grid %>% 
+  bind_cols(
+    predict(ns_mod, new_data = data_grid)
+    ) 
+
+ggplot(predicted_lines, aes(x = Duration, y = .pred, color = Weather_Condition)) + geom_point() + geom_line()+ theme_classic() + ggtitle('Spline Model Predictions')
+
+
+# Visualizing the Predictions (focusing on Hour & Sunrise_Sunset)
+data_grid <- expand.grid(Duration = 30, Temp = 30, Sunrise_Sunset = c('Day','Night'), Weather_Condition = "Mostly Cloudy", Wind = 0, Junction = 0 , Traffic_Signal = 0, month = 1, hour = 0:23 , Vis = 10, Crossing = 0, dayofweek = "1", Severity = "2") 
+
+predicted_lines <- data_grid %>% 
+  bind_cols(
+    predict(ns_mod, new_data = data_grid)
+    ) 
+
+ggplot(predicted_lines, aes(x = hour, y = .pred, color = Sunrise_Sunset)) + geom_point() + geom_line()+ theme_classic() + ggtitle('Spline Model Predictions')
+
+# Visualizing the Predictions (focusing on Month & Severity)
+data_grid <- expand.grid(Duration = 30, Temp = 30, Sunrise_Sunset = 'Day', Weather_Condition = "Mostly Cloudy", Wind = 0, Junction = 0 , Traffic_Signal = 0, month = 1:12, hour = 6 , Vis = 10, Crossing = 0, dayofweek = "1",Severity = c("2","3","4")) 
+
+predicted_lines <- data_grid %>% 
+  bind_cols(
+    predict(ns_mod, new_data = data_grid)
+    ) 
+
+ggplot(predicted_lines, aes(x = month, y = .pred,color = Severity)) + geom_point() + geom_line()+ theme_classic() + ggtitle('Spline Model Predictions')
+
+```
+
+
+```{r}
+#OLS Model (5 variables)
+mod1_cv %>% collect_metrics()
+
+#Lasso Model
+tune_output %>% collect_metrics() %>% 
+  filter(penalty == (best_se_penalty %>% pull(penalty)))
+
+#Spline Model
+cv_output %>% collect_metrics()
+
+```
+
+b. Compare insights from variable importance analyses here and the corresponding results from the Investigation 1. Now after having accounted for nonlinearity, have the most relevant predictors changed? 
+  -Note that if some (but not all) of the spline terms are selected in the final models, the whole predictor should be treated as selected.
+  
+### we didn't get past this... we have to redo some of the part 1 code as we standardized some variables; but have all reached our capacity for this assignment and want to enjoy break.
+
+c. Fit a GAM using spline terms using the set of variables deemed to be most relevant based on your investigations so far.
+  -How does test performance of the GAM compare to other models you explored?
+  -Do you gain any insights from the GAM output plots for each predictor?
+
+
+3. Summarize investigations
+  -Decide on an overall best model based on your investigations so far. To do this, make clear your analysis goals. Predictive accuracy? Interpretability? A combination of both?
+
+
+4. Societal impact
+  -Are there any harms that may come from your analyses and/or how the data were collected?
+  -What cautions do you want to keep in mind when communicating your work?
+
+# Homework 4 {-}
+Specify the research question for a classification task.
+
+**What is the best predictor of the length of traffic caused by an accident?**
+
+Try to implement at least 2 different classification methods to answer your research question.
+
+```{r Decision Tree}
+set.seed(123) # don't change this
+
+tree_fold <- vfold_cv(accidents, v = 10)
+
+ct_spec_tune <- decision_tree() %>%
+  set_engine(engine = 'rpart') %>%
+  set_args(cost_complexity = tune(),  
+           min_n = 2, 
+           tree_depth = 3) %>% 
+  set_mode('classification') 
+
+tree_rec <- recipe(Severity ~ ., data = accidents) %>%
+  step_nzv(all_predictors()) %>%
+  step_other(all_nominal_predictors())
+
+tree_wf_tune <- workflow() %>%
+  add_model(ct_spec_tune) %>%
+  add_recipe(tree_rec)
+
+param_grid <- grid_regular(cost_complexity(range = c(-5, 1)), levels = 10) 
+
+tree_tune_res <- tune_grid(
+  tree_wf_tune, 
+  resamples = tree_fold, 
+  grid = param_grid, 
+  metrics = metric_set(accuracy) #change this for regression trees
+)
+
+autoplot(tree_tune_res) + theme_classic()
+
+best_complexity <- select_by_one_std_err(tree_tune_res, metric = 'accuracy', desc(cost_complexity))
+data_wf_final <- finalize_workflow(tree_wf_tune, best_complexity)
+
+tree_final_fit <- fit(data_wf_final, data = accidents)
+
+# CV Metrics
+tree_tune_res %>% 
+  collect_metrics() %>%
+  filter(cost_complexity == best_complexity %>% pull(cost_complexity))
+
+#Tree visual
+tree_final_fit %>% extract_fit_engine() %>% rpart.plot()
+
+
+```
+
+
+```{r Random Forest}
+rf_spec <- rand_forest() %>%
+  set_engine(engine = 'ranger') %>% 
+  set_args(mtry = NULL, # size of random subset of variables; default is floor(sqrt(number of total predictors))
+           trees = 500, # Number of trees
+           min_n = 50,
+           probability = FALSE, # FALSE: get hard predictions (not needed for regression)
+           importance = 'impurity') %>% # we'll come back to this at the end
+  set_mode('classification') # change this for regression
+
+# Recipe is tree_rec
+
+# Workflows
+data_wf <- workflow() %>%
+  add_model(rf_spec) %>%
+  add_recipe(tree_rec)
+
+
+data_rf_fit <- fit(data_wf, data = accidents)
+
+data_rf_OOB_output <- tibble(
+          .pred_class = data_rf_fit %>% extract_fit_engine() %>% pluck('predictions'), #OOB predictions
+          class = accidents %>% pull(Severity)
+      )
+
+## OOB Metrics
+data_rf_OOB_output %>% 
+    accuracy(truth = class, estimate = .pred_class)
+
+data_rf_OOB_output %>% 
+    conf_mat(truth = class, estimate = .pred_class)
+
+#Variable Importance - Impurity
+model_output <- data_rf_fit  %>% 
+    extract_fit_engine() 
+
+model_output %>% 
+    vip::vip(num_features = 30) + theme_classic() #based on impurity
+
+#Variable Importance - Permutation
+model_output2 <- data_wf %>% 
+  update_model(rf_spec %>% set_args(importance = "permutation")) %>% #based on permutation
+  fit(data = accidents) %>% 
+    extract_fit_engine() 
+
+model_output2 %>% 
+    vip::vip(num_features = 30) + theme_classic()
+
+
+# Visualizing the Predictions (focusing on Duration, Month, Hour)
+data_grid <- expand.grid(Duration = c(10,15,30,60,120,240), Temp = 30, Sunrise_Sunset = 'Day', Weather_Condition = "Mostly Cloudy", Wind = 0, Junction = 0 , Traffic_Signal = 0, month = 1:12, hour = 0:23 , Vis = 10, Crossing = 0, logDist = 0, dayofweek = "1") 
+
+predicted_lines <- data_grid %>% 
+  bind_cols(
+    predict(tree_final_fit, new_data = data_grid)
+    ) 
+
+ggplot(predicted_lines,aes(x = hour, y = month, color = .pred_class)) + geom_point() + facet_wrap(~Duration) + theme_classic() + ggtitle('Classification Tree Predictions')
+
+
+predicted_lines <- data_grid %>% 
+  bind_cols(
+    predict(data_rf_fit, new_data = data_grid)
+    ) 
+
+ggplot(predicted_lines,aes(x = hour, y = month, color = .pred_class)) + geom_point() + facet_wrap(~Duration) + theme_classic() + ggtitle('Random Forest Predictions')
+```
+
+```{r Hierarchical Clustering}
+#CLUSTERING
+# Random subsample of 50 penguins
+set.seed(253)
+accidents_Sub <- accidents %>%
+    slice_sample(n = 50)
+# Select the variables to be used in clustering
+accidents_Clust <- accidents_Sub %>%
+    select(Severity, Temp, Vis, Wind, Weather_Condition, Crossing, Junction, Traffic_Signal, Sunrise_Sunset, logDist, Duration, dayofweek, month, hour) %>%
+    mutate(Weather_Condition = as.factor(Weather_Condition), Sunrise_Sunset = as.factor(Sunrise_Sunset)) %>%
+    mutate(Crossing = as.factor(Crossing), Junction = as.factor(Junction), Traffic_Signal = as.factor(Traffic_Signal))
+# Summary statistics for the variables
+summary(accidents_Clust)
+#Daisy--standardizes variables using Gauer's distance
+accidents_ClustDaze <- hclust(daisy(accidents_Clust), method = 'complete')
+accidents_ClustDaze %>% plot()
+summary(accidents_ClustDaze)
+accidents_ClustDaze %>% plot()
+#SHOULD CUT TO MAKE IT TWO
+```
+
+
+Reflect on the information gained from these two methods and how you might justify this method to others.
+
+Keep in mind that the final project will require you to complete the pieces below. Use this as a guide for your work but don’t try to accomplish everything for HW4:
+
+Classification - Methods
+Indicate at least 2 different methods used to answer your classification research question.
+Describe what you did to evaluate the models explored.
+Indicate how you estimated quantitative evaluation metrics.
+Describe the goals / purpose of the methods used in the overall context of your research investigations.
+
+Classification - Results
+Summarize your final model and justify your model choice (see below for ways to justify your choice).
+Compare the different classification models tried in light of evaluation metrics, variable importance, and data context.
+Display evaluation metrics for different models in a clean, organized way. This display should include both the estimated metric as well as its standard deviation. (This won’t be available from OOB error estimation. If using OOB, don’t worry about reporting the SD.)
+Broadly summarize conclusions from looking at these evaluation metrics and their measures of uncertainty.
+
+Classification - Conclusions - 
+Interpret evaluation metric(s) for the final model in context. Does the model show an acceptable amount of error? - If using OOB error estimation, display the test (OOB) confusion matrix, and use it to interpret the strengths and weaknesses of the final model. - Summarization should show evidence of acknowledging the data context in thinking about the sensibility of these results.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
